@@ -31,6 +31,11 @@ ledger-transport = { git = "https://github.com/Zondax/ledger-rs", branch="master
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
 hex = "0.4.2"
 zcashtools = { path = "../zcashtools" }
+jubjub = { version = "0.5.1", default-features = false }
+
+[dependencies.zcash_primitives]
+version = "0.4.0"
+features=["transparent-inputs"]
 
 [dev-dependencies]
 futures = "0.3.5"

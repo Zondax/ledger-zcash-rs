@@ -28,6 +28,20 @@ use zx_bip44::BIP44Path;
 
 extern crate hex;
 
+use zcash_primitives::keys::*;
+
+const INS_GET_IVK: u8 = 0xf0;
+const INS_GET_OVK: u8 = 0xf4;
+
+/*
+const INS_INIT_TX: u8 = 0xa0;
+const INS_EXTRACT_SPEND: u8 = 0xa1;
+const INS_EXTRACT_OUTPUT: u8 = 0xa2;
+const INS_CHECKANDSIGN: u8 = 0xa3;
+const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
+const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
+*/
+
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
 const INS_SIGN_SECP256K1: u8 = 0x02;
@@ -222,5 +236,87 @@ impl ZcashApp {
         sig.copy_from_slice(&response.data[..65]);
 
         Ok(sig)
+    }
+
+    /// Retrieves a outgoing viewing key of a sapling key
+    pub async fn get_ovk(
+        &self,
+        path: &BIP44Path,
+        require_confirmation: bool,
+    ) -> Result<OutgoingViewingKey, LedgerAppError> {
+        let serialized_path = path.serialize();
+        let p1 = if require_confirmation { 1 } else { 0 };
+
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_GET_OVK,
+            p1,
+            p2: 0x00,
+            data: serialized_path,
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 32 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let mut bytes = [0u8;32];
+        bytes.copy_from_slice(&response.data[0..32]);
+
+        let ovk = OutgoingViewingKey(bytes);
+
+        Ok(ovk)
+    }
+
+    /// Retrieves a incoming viewing key of a sapling key
+    pub async fn get_ivk(
+        &self,
+        path: &BIP44Path,
+        require_confirmation: bool,
+    ) -> Result<jubjub::Fr, LedgerAppError> {
+        let serialized_path = path.serialize();
+        let p1 = if require_confirmation { 1 } else { 0 };
+
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_GET_IVK,
+            p1,
+            p2: 0x00,
+            data: serialized_path,
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 32 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let mut bytes = [0u8;32];
+        bytes.copy_from_slice(&response.data[0..32]);
+
+        let f = jubjub::Fr::from_bytes(&bytes);
+
+        if f.is_some().into() {
+            Ok(f.unwrap())
+        } else {
+            Err(LedgerAppError::Crypto)
+        }
     }
 }
