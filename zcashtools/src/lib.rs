@@ -42,36 +42,36 @@ use crate::neon_bridge::*;
 
 #[derive(Debug, Deserialize)]
 pub struct TinData {
-    path: [u32; 5],
+    pub path: [u32; 5],
     #[serde(deserialize_with = "script_deserialize")]
-    address: Script,
+    pub address: Script,
     #[serde(deserialize_with = "amount_deserialize")]
-    value: Amount,
+    pub value: Amount,
 }
 #[derive(Debug, Deserialize)]
 pub struct ToutData {
     #[serde(deserialize_with = "script_deserialize")]
-    address: Script,
+    pub address: Script,
     #[serde(deserialize_with = "amount_deserialize")]
-    value: Amount,
+    pub value: Amount,
 }
 #[derive(Debug, Deserialize)]
 pub struct ShieldedSpendData {
-    path: u32,
+    pub path: u32,
     #[serde(deserialize_with = "s_address_deserialize")]
-    address: PaymentAddress,
+    pub address: PaymentAddress,
     #[serde(deserialize_with = "amount_deserialize")]
-    value: Amount,
+    pub value: Amount,
 }
 #[derive(Debug, Deserialize)]
 pub struct ShieldedOutputData {
     #[serde(deserialize_with = "s_address_deserialize")]
-    address: PaymentAddress,
+    pub address: PaymentAddress,
     #[serde(deserialize_with = "amount_deserialize")]
-    value: Amount,
-    memotype: u8,
+    pub value: Amount,
+    pub memotype: u8,
     #[serde(deserialize_with = "ovk_deserialize")]
-    ovk: Option<OutgoingViewingKey>,
+    pub ovk: Option<OutgoingViewingKey>,
 }
 
 #[derive(Debug, Deserialize)]

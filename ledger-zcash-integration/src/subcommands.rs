@@ -13,29 +13,26 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-//! Support library for Kusama Ledger Nano S/X apps
+//! Support library for Zcash Ledger Nano S/X apps
 
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::option_unwrap_used,
-        clippy::option_expect_used,
-        clippy::result_unwrap_used,
-        clippy::result_expect_used,
-    )
-)]
 #![deny(warnings, trivial_casts, trivial_numeric_casts)]
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
+/*
+use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
+use ledger_zondax_generic::{
+    map_apdu_error_description, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
+};
+use std::str;
+extern crate hex;
+ */
 
-mod app;
-mod subcommands;
+/*
+const INS_INIT_TX: u8 = 0xa0;
+const INS_EXTRACT_SPEND: u8 = 0xa1;
+const INS_EXTRACT_OUTPUT: u8 = 0xa2;
+const INS_CHECKANDSIGN: u8 = 0xa3;
+const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
+const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
+*/
 
-pub use ledger_transport::errors::TransportError;
-#[cfg(target_arch = "wasm32")]
-pub use ledger_transport::TransportWrapperTrait;
-pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCodes, APDUTransport};
-
-/// Ledger app
-pub use app::*;
-pub use ledger_zondax_generic::LedgerAppError;

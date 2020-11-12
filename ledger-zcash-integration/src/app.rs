@@ -30,18 +30,79 @@ extern crate hex;
 
 use zcash_primitives::keys::*;
 use zcash_primitives::primitives::PaymentAddress;
+use zcash_primitives::transaction::components::{Amount, TxIn, TxOut};
+use zcash_primitives::merkle_tree::IncrementalWitness;
+use zcash_primitives::sapling::Node;
+use zcash_primitives::primitives::Rseed;
+use zcash_primitives::note_encryption::Memo;
+use zcashtools::{TinData, ToutData,TransparentInputBuilderInfo};
+//use zcash_primitives::transaction::Transaction;
+
+
+pub struct LedgerDataTransparentInput{
+    pub path: BIP44Path,
+    pub pk: secp256k1::PublicKey,
+    pub txin: TxIn,
+    pub value: Amount,
+}
+
+impl LedgerDataTransparentInput {
+    pub fn to_init_data(&self) -> TinData{
+        TinData{
+            path: self.path.0.clone(),
+            address: self.txin.script_sig.clone(),
+            value: self.value.clone()
+        }
+    }
+
+    pub fn to_builder_data(&self) -> TransparentInputBuilderInfo{
+        TransparentInputBuilderInfo{
+           outp: self.txin.prevout.clone(),
+           pk: self.pk,
+           address: self.txin.script_sig.clone(),
+            value: self.value.clone(),
+        }
+    }
+}
+
+pub struct LedgerDataTransparentOutput{
+    pub txout: TxOut,
+}
+
+impl LedgerDataTransparentOutput{
+    pub fn to_init_data(&self) -> ToutData{
+        ToutData{
+            address: self.txout.script_pubkey.clone(),
+            value: self.txout.value.clone(),
+        }
+    }
+}
+
+pub struct LedgerDataShieldedSpend{
+    pub path: u32,
+    pub address: PaymentAddress,
+    pub value: Amount,
+    pub witness: IncrementalWitness<Node>,
+    pub rseed: Rseed,           //only AferZIP202
+}
+
+pub struct LedgerDataShieldedOutput{
+    pub address: PaymentAddress,
+    pub value: Amount,
+    pub ovk: Option<OutgoingViewingKey>,
+    pub memo: Option<Memo>,
+}
+
+pub struct LedgerDataInput {
+    pub TxFee: u64,
+    pub VecTin: Vec<LedgerDataTransparentInput>,
+    pub VecTout: Vec<LedgerDataTransparentOutput>,
+    pub VecSSpend: Vec<LedgerDataShieldedSpend>,
+    pub VecSOut: Vec<LedgerDataShieldedOutput>
+}
 
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf4;
-
-/*
-const INS_INIT_TX: u8 = 0xa0;
-const INS_EXTRACT_SPEND: u8 = 0xa1;
-const INS_EXTRACT_OUTPUT: u8 = 0xa2;
-const INS_CHECKANDSIGN: u8 = 0xa3;
-const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
-const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
-*/
 
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
@@ -324,5 +385,20 @@ impl ZcashApp {
         } else {
             Err(LedgerAppError::Crypto)
         }
+    }
+
+    pub async fn do_transaction(
+        &self,
+        input: LedgerDataInput,
+    ) -> Result<(), LedgerAppError> {
+        //inittx
+        //handletransparentinputs
+        //handletransparentoutputs
+        //handleshieldedspends
+        //handleshieldedoutputs
+        //checkandsign
+        //handlesignatures
+        //finalize
+        Ok(())
     }
 }
