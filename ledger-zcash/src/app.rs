@@ -29,6 +29,7 @@ use zx_bip44::BIP44Path;
 extern crate hex;
 
 use zcash_primitives::keys::*;
+use zcash_primitives::primitives::PaymentAddress;
 
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf4;
@@ -61,7 +62,7 @@ pub struct ZcashApp {
 }
 
 type PublicKeySecp256k1 = [u8; PK_LEN_SECP261K1];
-type PublicKeySapling = [u8; PK_LEN_SAPLING];
+//type PublicKeySapling = [u8; PK_LEN_SAPLING];
 
 /// Zcash unshielded address
 #[allow(dead_code)]
@@ -76,7 +77,7 @@ pub struct AddressUnshielded {
 #[allow(dead_code)]
 pub struct AddressShielded {
     /// Public Key
-    pub public_key: PublicKeySapling,
+    pub public_key: PaymentAddress,
     /// Address (exposed as SS58)
     pub address: String,
 }
@@ -185,14 +186,19 @@ impl ZcashApp {
 
         log::info!("Received response {}", response.data.len());
 
+        let mut bytes = [0u8;PK_LEN_SAPLING];
+        bytes.copy_from_slice(&response.data[..PK_LEN_SAPLING]);
+
+        let addr = PaymentAddress::from_bytes(&bytes);
+        if addr.is_none(){
+            return Err(LedgerAppError::Crypto);
+        }
+
         let mut address = AddressShielded {
-            public_key: [0; PK_LEN_SAPLING],
+            public_key: addr.unwrap(),
             address: "".to_string(),
         };
 
-        address
-            .public_key
-            .copy_from_slice(&response.data[..PK_LEN_SAPLING]);
         address.address = str::from_utf8(&response.data[PK_LEN_SAPLING..])
             .map_err(|_e| LedgerAppError::Utf8)?
             .to_owned();

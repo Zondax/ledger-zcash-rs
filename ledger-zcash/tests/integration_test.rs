@@ -98,9 +98,9 @@ mod integration_tests {
         let path = BIP44Path::from_string("m/44'/133'/1'/0/0").unwrap();
         let resp = app.get_address_shielded(&path, false).await.unwrap();
 
-        assert_eq!(resp.public_key.len(), PK_LEN_SAPLING);
+        assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-        let pkhex = hex::encode(&resp.public_key[..]);
+        let pkhex = hex::encode(&resp.public_key.to_bytes());
         println!("Public Key   {:?}", pkhex);
         println!("Address address {:?}", resp.address);
 
@@ -153,9 +153,9 @@ mod integration_tests {
         let path = BIP44Path::from_string("m/44'/133'/1'/0/0").unwrap();
         let resp = app.get_address_shielded(&path, true).await.unwrap();
 
-        assert_eq!(resp.public_key.len(), PK_LEN_SAPLING);
+        assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-        let pkhex = hex::encode(&resp.public_key[..]);
+        let pkhex = hex::encode(&resp.public_key.to_bytes());
         println!("Public Key   {:?}", pkhex);
         println!("Address address {:?}", resp.address);
 
