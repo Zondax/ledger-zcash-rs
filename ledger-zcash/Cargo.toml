@@ -30,6 +30,7 @@ ledger-zondax-generic = { git = "https://github.com/Zondax/ledger-rs", branch="m
 ledger-transport = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
 hex = "0.4.2"
+zcashtools = { path = "../zcashtools" }
 
 [dev-dependencies]
 futures = "0.3.5"

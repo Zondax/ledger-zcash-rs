@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "ledger-zcash",
+    "zcashtools"
 ]
 
 [profile.release]
