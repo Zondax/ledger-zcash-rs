@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "ledger-zcash",
+    "ledger-zcash-integration",
     "zcashtools"
 ]
 
