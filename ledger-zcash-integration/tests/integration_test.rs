@@ -44,7 +44,7 @@ mod integration_tests {
         log::info!("Test");
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
@@ -65,7 +65,7 @@ mod integration_tests {
         init_logging();
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
@@ -91,7 +91,7 @@ mod integration_tests {
         init_logging();
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
@@ -120,7 +120,7 @@ mod integration_tests {
         init_logging();
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
@@ -146,7 +146,7 @@ mod integration_tests {
         init_logging();
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
@@ -175,7 +175,7 @@ mod integration_tests {
         init_logging();
 
         let transport = APDUTransport {
-            transport_wrapper: ledger::TransportNativeHID::new().unwrap(),
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
         };
         let app = ZcashApp::new(transport);
 
