@@ -28,16 +28,17 @@ use zx_bip44::BIP44Path;
 
 extern crate hex;
 
+use group::GroupEncoding;
 use zcash_primitives::keys::*;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
-use zcash_primitives::primitives::PaymentAddress;
 use zcash_primitives::primitives::Rseed;
+use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, TxIn, TxOut};
 use zcashtools::{
-    LedgerInitData, ShieldedOutputData, ShieldedSpendData, TinData, ToutData,
-    TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
+    TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
 };
 //use zcash_primitives::transaction::Transaction;
 
@@ -122,6 +123,22 @@ impl LedgerDataShieldedSpend {
             value: self.value.clone(),
         }
     }
+
+    ///Take the fields plus additional inputs to send to builder
+    pub fn to_builder_data(
+        &self,
+        spendinfo: (ProofGenerationKey, jubjub::Fr, jubjub::Fr),
+    ) -> SpendBuilderInfo {
+        SpendBuilderInfo {
+            proofkey: spendinfo.0,
+            rcv: spendinfo.1,
+            alpha: spendinfo.2,
+            address: self.address.clone(),
+            value: self.value.clone(),
+            witness: self.witness.clone(),
+            rseed: self.rseed.clone(),
+        }
+    }
 }
 
 ///Data needed to handle shielded output for sapling transaction
@@ -149,6 +166,18 @@ impl LedgerDataShieldedOutput {
                 self.memo.clone().unwrap().as_bytes()[0]
             },
             ovk: self.ovk,
+        }
+    }
+
+    ///Take the fields plus additional inputs to send to builder
+    pub fn to_builder_data(&self, outputinfo: (jubjub::Fr, Rseed)) -> OutputBuilderInfo {
+        OutputBuilderInfo {
+            rcv: outputinfo.0,
+            rseed: outputinfo.1,
+            ovk: self.ovk,
+            address: self.address.clone(),
+            value: self.value.clone(),
+            memo: self.memo.clone(),
         }
     }
 }
@@ -204,6 +233,8 @@ impl LedgerDataInput {
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf4;
 const INS_INIT_TX: u8 = 0xa0;
+const INS_EXTRACT_SPEND: u8 = 0xa1;
+const INS_EXTRACT_OUTPUT: u8 = 0xa2;
 
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
@@ -512,6 +543,126 @@ impl ZcashApp {
         Ok(hash)
     }
 
+    ///Get the information needed from ledger to make a shielded spend
+    pub async fn get_spendinfo(
+        &self,
+    ) -> Result<(ProofGenerationKey, jubjub::Fr, jubjub::Fr), LedgerAppError> {
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_EXTRACT_SPEND,
+            p1: 0x00,
+            p2: 0x00,
+            data: Vec::with_capacity(5 * 4),
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 64 + 32 + 32 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let bytes = response.data;
+
+        let mut akb = [0u8; 32];
+        akb.copy_from_slice(&bytes[0..32]);
+        let mut nskb = [0u8; 32];
+        nskb.copy_from_slice(&bytes[32..64]);
+
+        let ak = jubjub::SubgroupPoint::from_bytes(&akb);
+        let nsk = jubjub::Fr::from_bytes(&nskb);
+        if ak.is_none().into() || nsk.is_none().into() {
+            return Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Invalid proofgeneration bytes"),
+            ));
+        }
+
+        let proofkey = ProofGenerationKey {
+            ak: ak.unwrap(),
+            nsk: nsk.unwrap(),
+        };
+
+        let mut rcvb = [0u8; 32];
+        rcvb.copy_from_slice(&bytes[64..96]);
+
+        let f = jubjub::Fr::from_bytes(&rcvb);
+        if f.is_none().into() {
+            return Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Invalid rcv bytes"),
+            ));
+        }
+        let rcv = f.unwrap();
+
+        let mut alphab = [0u8; 32];
+        alphab.copy_from_slice(&bytes[96..128]);
+
+        let f = jubjub::Fr::from_bytes(&alphab);
+        if f.is_none().into() {
+            return Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Invalid rcv bytes"),
+            ));
+        }
+        let alpha = f.unwrap();
+
+        Ok((proofkey, rcv, alpha))
+    }
+
+    ///Get the information needed from ledger to make a shielded output
+    pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, Rseed), LedgerAppError> {
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_EXTRACT_OUTPUT,
+            p1: 0x00,
+            p2: 0x00,
+            data: Vec::with_capacity(5 * 4),
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 64 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let bytes = response.data;
+
+        let mut rcvb = [0u8; 32];
+        rcvb.copy_from_slice(&bytes[0..32]);
+
+        let f = jubjub::Fr::from_bytes(&rcvb);
+        if f.is_none().into() {
+            return Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Invalid rcv bytes"),
+            ));
+        }
+        let rcv = f.unwrap();
+
+        let mut rseedb = [0u8; 32];
+        rseedb.copy_from_slice(&bytes[32..64]);
+
+        let rseed = Rseed::AfterZip212(rseedb);
+
+        Ok((rcv, rseed))
+    }
+
     ///Does a complete transaction in the ledger
     pub async fn do_transaction(&self, input: LedgerDataInput) -> Result<(), LedgerAppError> {
         let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
@@ -519,6 +670,44 @@ impl ZcashApp {
         let r = self.init_tx(&init_blob).await;
         if r.is_err() {
             return Err(r.err().unwrap());
+        }
+
+        let mut builder = zcashtools::ZcashBuilderLedger::new(input.txfee);
+
+        for info in input.vec_tin {
+            let r = builder.add_transparent_input(info.to_builder_data());
+            if r.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+        }
+
+        for info in input.vec_tout {
+            let r = builder.add_transparent_output(info.to_builder_data());
+            if r.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+        }
+
+        for info in input.vec_sspend {
+            let req = self.get_spendinfo().await;
+            if req.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+            let r = builder.add_sapling_spend(info.to_builder_data(req.unwrap()));
+            if r.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+        }
+
+        for info in input.vec_soutput {
+            let req = self.get_outputinfo().await;
+            if req.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+            let r = builder.add_sapling_output(info.to_builder_data(req.unwrap()));
+            if r.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
         }
 
         //inittx

@@ -33,6 +33,7 @@ hex = "0.4.2"
 zcashtools = { path = "../zcashtools" }
 jubjub = { version = "0.5.1", default-features = false }
 secp256k1 = {version="0.19.0",default-features=false}
+group = "0.8.0"
 
 
 [dependencies.zcash_primitives]
