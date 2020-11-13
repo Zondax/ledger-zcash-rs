@@ -772,14 +772,14 @@ impl ZcashApp {
         input: &LedgerDataInput,
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
         let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
-
+        log::info!("sending inittx data to ledger");
         let r = self.init_tx(&init_blob).await;
         if r.is_err() {
             return Err(r.err().unwrap());
         }
 
         let mut builder = zcashtools::ZcashBuilderLedger::new(input.txfee);
-
+        log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
             if r.is_err() {
@@ -795,6 +795,7 @@ impl ZcashApp {
         }
 
         for info in input.vec_sspend.iter() {
+            log::info!("getting spend data from ledger");
             let req = self.get_spendinfo().await;
             if req.is_err() {
                 return Err(LedgerAppError::Crypto);
@@ -805,7 +806,7 @@ impl ZcashApp {
                 return Err(LedgerAppError::Crypto);
             }
         }
-
+        log::info!("getting output data from ledger");
         for info in input.vec_soutput.iter() {
             let req = self.get_outputinfo().await;
             if req.is_err() {
@@ -822,19 +823,23 @@ impl ZcashApp {
             Path::new("../../zcashtools/src"),
             Path::new("../../zcashtools/src"),
         );
-
+        log::info!("building the transaction");
         let r = builder.build(&mut prover);
         if r.is_err() {
             return Err(LedgerAppError::Crypto);
         }
+        log::info!("building the transaction success");
         let ledgertxblob = r.unwrap();
+        log::info!("sending checkdata to ledger");
         let req = self.checkandsign(&ledgertxblob).await;
         if req.is_err() {
             return Err(LedgerAppError::Crypto);
         }
+        log::info!("checking and signing succeeded by ledger");
 
         let mut transparent_sigs = Vec::new();
         let mut spend_sigs = Vec::new();
+        log::info!("requesting signatures");
 
         for _ in 0..input.vec_tin.len() {
             let req = self.get_transparent_signature().await;
@@ -851,12 +856,12 @@ impl ZcashApp {
             }
             spend_sigs.push(req.unwrap());
         }
-
+        log::info!("all signatures retrieved");
         let sigs = TransactionSignatures {
             transparent_sigs,
             spend_sigs,
         };
-
+        log::info!("finalizing transaction");
         let r = builder.add_signatures(sigs);
         if r.is_err() {
             return Err(LedgerAppError::Crypto);
@@ -867,6 +872,7 @@ impl ZcashApp {
         if r.is_err() {
             return Err(LedgerAppError::Crypto);
         }
+        log::info!("final transaction complete");
         Ok(r.unwrap())
     }
 }

@@ -100,7 +100,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let path = BIP44Path::from_string("m/44'/133'/1'/0/0").unwrap();
+        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
         let resp = app.get_address_shielded(&path, false).await.unwrap();
 
         assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
@@ -111,11 +111,11 @@ mod integration_tests {
 
         assert_eq!(
             pkhex,
-            "fa73b4c8ef0b7b49bb3c94bf2e1df1b27fbf73bb9599cf747714d1fa8b3bf2fb8fe600aca010f875b6ea53"
+            "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667"
         );
         assert_eq!(
             resp.address,
-            "zs1lfemfj80pda5nweujjlju803kflm7uamjkvu7arhzngl4zem7taclesq4jspp7r4km49xhd74ga"
+            "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3"
         );
     }
 
@@ -155,7 +155,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let path = BIP44Path::from_string("m/44'/133'/1'/0/0").unwrap();
+        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
         let resp = app.get_address_shielded(&path, true).await.unwrap();
 
         assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
@@ -166,11 +166,11 @@ mod integration_tests {
 
         assert_eq!(
             pkhex,
-            "fa73b4c8ef0b7b49bb3c94bf2e1df1b27fbf73bb9599cf747714d1fa8b3bf2fb8fe600aca010f875b6ea53"
+            "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667"
         );
         assert_eq!(
             resp.address,
-            "zs1lfemfj80pda5nweujjlju803kflm7uamjkvu7arhzngl4zem7taclesq4jspp7r4km49xhd74ga"
+            "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3"
         );
     }
 
@@ -196,7 +196,6 @@ mod integration_tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn do_full_transaction_shieldedonly() {
         init_logging();
 
