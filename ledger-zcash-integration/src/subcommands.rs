@@ -23,16 +23,19 @@ use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
 use ledger_zondax_generic::{
     map_apdu_error_description, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
+
 use std::str;
 extern crate hex;
- */
 
-/*
-const INS_INIT_TX: u8 = 0xa0;
+use zcashtools::LedgerInitData;
+use crate::app::ZcashApp;
+
+
 const INS_EXTRACT_SPEND: u8 = 0xa1;
 const INS_EXTRACT_OUTPUT: u8 = 0xa2;
 const INS_CHECKANDSIGN: u8 = 0xa3;
 const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
 const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
 */
+
 
