@@ -29,7 +29,6 @@
 #![deny(missing_docs)]
 
 mod app;
-mod subcommands;
 
 pub use ledger_transport::errors::TransportError;
 #[cfg(target_arch = "wasm32")]

@@ -23,6 +23,7 @@ use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
 use ledger_zondax_generic::{
     map_apdu_error_description, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
+use std::path::Path;
 use std::str;
 use zx_bip44::BIP44Path;
 
@@ -34,11 +35,15 @@ use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
 use zcash_primitives::primitives::Rseed;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
+use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, TxIn, TxOut};
+use zcash_primitives::transaction::Transaction;
+use zcashtools::txbuilder_ledger::TransactionMetadata;
 use zcashtools::{
     LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-    TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
+    TransparentOutputBuilderInfo,
 };
 //use zcash_primitives::transaction::Transaction;
 
@@ -59,9 +64,9 @@ impl LedgerDataTransparentInput {
     ///Takes the fields needed to send to the ledger
     pub fn to_init_data(&self) -> TinData {
         TinData {
-            path: self.path.0.clone(),
+            path: self.path.0,
             address: self.txin.script_sig.clone(),
-            value: self.value.clone(),
+            value: self.value,
         }
     }
 
@@ -71,7 +76,7 @@ impl LedgerDataTransparentInput {
             outp: self.txin.prevout.clone(),
             pk: self.pk,
             address: self.txin.script_sig.clone(),
-            value: self.value.clone(),
+            value: self.value,
         }
     }
 }
@@ -87,14 +92,14 @@ impl LedgerDataTransparentOutput {
     pub fn to_init_data(&self) -> ToutData {
         ToutData {
             address: self.txout.script_pubkey.clone(),
-            value: self.txout.value.clone(),
+            value: self.txout.value,
         }
     }
     ///Decouples this struct to send to builder
     pub fn to_builder_data(&self) -> TransparentOutputBuilderInfo {
         TransparentOutputBuilderInfo {
             address: self.txout.script_pubkey.clone(),
-            value: self.txout.value.clone(),
+            value: self.txout.value,
         }
     }
 }
@@ -118,9 +123,9 @@ impl LedgerDataShieldedSpend {
     ///Take the fields needed to send to ledger
     pub fn to_init_data(&self) -> ShieldedSpendData {
         ShieldedSpendData {
-            path: self.path.clone(),
+            path: self.path,
             address: self.address.clone(),
-            value: self.value.clone(),
+            value: self.value,
         }
     }
 
@@ -134,9 +139,9 @@ impl LedgerDataShieldedSpend {
             rcv: spendinfo.1,
             alpha: spendinfo.2,
             address: self.address.clone(),
-            value: self.value.clone(),
+            value: self.value,
             witness: self.witness.clone(),
-            rseed: self.rseed.clone(),
+            rseed: self.rseed,
         }
     }
 }
@@ -159,7 +164,7 @@ impl LedgerDataShieldedOutput {
     pub fn to_init_data(&self) -> ShieldedOutputData {
         ShieldedOutputData {
             address: self.address.clone(),
-            value: self.value.clone(),
+            value: self.value,
             memotype: if self.memo.is_none() {
                 0xf6
             } else {
@@ -176,7 +181,7 @@ impl LedgerDataShieldedOutput {
             rseed: outputinfo.1,
             ovk: self.ovk,
             address: self.address.clone(),
-            value: self.value.clone(),
+            value: self.value,
             memo: self.memo.clone(),
         }
     }
@@ -235,6 +240,9 @@ const INS_GET_OVK: u8 = 0xf4;
 const INS_INIT_TX: u8 = 0xa0;
 const INS_EXTRACT_SPEND: u8 = 0xa1;
 const INS_EXTRACT_OUTPUT: u8 = 0xa2;
+const INS_CHECKANDSIGN: u8 = 0xa3;
+const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
+const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
 
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
@@ -663,8 +671,106 @@ impl ZcashApp {
         Ok((rcv, rseed))
     }
 
+    ///Get a transparent signature from the ledger
+    pub async fn get_transparent_signature(&self) -> Result<secp256k1::Signature, LedgerAppError> {
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_EXTRACT_TRANSSIG,
+            p1: 0x00,
+            p2: 0x00,
+            data: Vec::with_capacity(5 * 4),
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 64 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let sig = secp256k1::Signature::from_compact(&response.data[0..64]);
+        if sig.is_err() {
+            Err(LedgerAppError::AppSpecific(
+                1,
+                String::from("invalid signature"),
+            ))
+        } else {
+            Ok(sig.unwrap())
+        }
+    }
+
+    ///Get a shielded spend signature from the ledger
+    pub async fn get_spend_signature(&self) -> Result<Signature, LedgerAppError> {
+        let command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_EXTRACT_SPENDSIG,
+            p1: 0x00,
+            p2: 0x00,
+            data: Vec::with_capacity(5 * 4),
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        if response.retcode != 0x9000 {
+            return Err(LedgerAppError::AppSpecific(
+                response.retcode,
+                map_apdu_error_description(response.retcode).to_string(),
+            ));
+        }
+
+        if response.data.len() < 64 {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response.data.len());
+
+        let sig = Signature::read(&response.data[..]);
+
+        if sig.is_err() {
+            Err(LedgerAppError::AppSpecific(
+                1,
+                String::from("invalid signature"),
+            ))
+        } else {
+            Ok(sig.unwrap())
+        }
+    }
+
+    ///Initiates a transaction in the ledger
+    pub async fn checkandsign(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
+        let start_command = APDUCommand {
+            cla: self.cla(),
+            ins: INS_CHECKANDSIGN,
+            p1: ChunkPayloadType::Init as u8,
+            p2: 0x00,
+            data: Vec::with_capacity(5 * 4),
+        };
+
+        let response =
+            ledger_zondax_generic::send_chunks(&self.apdu_transport, &start_command, data).await?;
+        log::info!("init ok");
+
+        if response.data.is_empty() && response.retcode == APDUErrorCodes::NoError as u16 {
+            return Err(LedgerAppError::NoSignature);
+        }
+
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&response.data[..32]);
+        //check hash here?
+        Ok(hash)
+    }
+
     ///Does a complete transaction in the ledger
-    pub async fn do_transaction(&self, input: LedgerDataInput) -> Result<(), LedgerAppError> {
+    pub async fn do_transaction(
+        &self,
+        input: &LedgerDataInput,
+    ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
         let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
 
         let r = self.init_tx(&init_blob).await;
@@ -674,50 +780,93 @@ impl ZcashApp {
 
         let mut builder = zcashtools::ZcashBuilderLedger::new(input.txfee);
 
-        for info in input.vec_tin {
+        for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
             if r.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
         }
 
-        for info in input.vec_tout {
+        for info in input.vec_tout.iter() {
             let r = builder.add_transparent_output(info.to_builder_data());
             if r.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
         }
 
-        for info in input.vec_sspend {
+        for info in input.vec_sspend.iter() {
             let req = self.get_spendinfo().await;
             if req.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
-            let r = builder.add_sapling_spend(info.to_builder_data(req.unwrap()));
+            let spendinfo = req.unwrap();
+            let r = builder.add_sapling_spend(info.to_builder_data(spendinfo));
             if r.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
         }
 
-        for info in input.vec_soutput {
+        for info in input.vec_soutput.iter() {
             let req = self.get_outputinfo().await;
             if req.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
-            let r = builder.add_sapling_output(info.to_builder_data(req.unwrap()));
+            let outputinfo = req.unwrap();
+            let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
             if r.is_err() {
                 return Err(LedgerAppError::Crypto);
             }
         }
 
-        //inittx
-        //handletransparentinputs
-        //handletransparentoutputs
-        //handleshieldedspends
-        //handleshieldedoutputs
-        //checkandsign
-        //handlesignatures
-        //finalize
-        Ok(())
+        let mut prover = zcashtools::txprover_ledger::LocalTxProverLedger::new(
+            Path::new("../../zcashtools/src"),
+            Path::new("../../zcashtools/src"),
+        );
+
+        let r = builder.build(&mut prover);
+        if r.is_err() {
+            return Err(LedgerAppError::Crypto);
+        }
+        let ledgertxblob = r.unwrap();
+        let req = self.checkandsign(&ledgertxblob).await;
+        if req.is_err() {
+            return Err(LedgerAppError::Crypto);
+        }
+
+        let mut transparent_sigs = Vec::new();
+        let mut spend_sigs = Vec::new();
+
+        for _ in 0..input.vec_tin.len() {
+            let req = self.get_transparent_signature().await;
+            if req.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+            transparent_sigs.push(req.unwrap());
+        }
+
+        for _ in 0..input.vec_sspend.len() {
+            let req = self.get_spend_signature().await;
+            if req.is_err() {
+                return Err(LedgerAppError::Crypto);
+            }
+            spend_sigs.push(req.unwrap());
+        }
+
+        let sigs = TransactionSignatures {
+            transparent_sigs,
+            spend_sigs,
+        };
+
+        let r = builder.add_signatures(sigs);
+        if r.is_err() {
+            return Err(LedgerAppError::Crypto);
+        }
+
+        let r = builder.finalize();
+
+        if r.is_err() {
+            return Err(LedgerAppError::Crypto);
+        }
+        Ok(r.unwrap())
     }
 }
