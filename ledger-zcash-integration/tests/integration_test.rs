@@ -212,7 +212,7 @@ mod integration_tests {
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
             .unwrap(),
-            value: Amount::from_u64(75_000).unwrap(),
+            value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
@@ -231,7 +231,7 @@ mod integration_tests {
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
             .unwrap(),
-            value: Amount::from_u64(25_000).unwrap(),
+            value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
@@ -243,7 +243,7 @@ mod integration_tests {
         };
 
         let output1 = LedgerDataShieldedOutput {
-            value: Amount::from_u64(80_000).unwrap(),
+            value: Amount::from_u64(60000).unwrap(),
             address: PaymentAddress::from_bytes(&[
                 21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
                 241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
@@ -254,7 +254,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let txfee = Amount::from_u64(1000).unwrap();
+        let txfee = Amount::from_u64(10000).unwrap();
         let change_amount = spend1.value + spend2.value - output1.value - txfee;
 
         let output2 = LedgerDataShieldedOutput {

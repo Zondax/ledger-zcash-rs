@@ -534,7 +534,7 @@ impl ZcashApp {
             ins: INS_INIT_TX,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response =
@@ -560,7 +560,7 @@ impl ZcashApp {
             ins: INS_EXTRACT_SPEND,
             p1: 0x00,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -632,7 +632,7 @@ impl ZcashApp {
             ins: INS_EXTRACT_OUTPUT,
             p1: 0x00,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -678,7 +678,7 @@ impl ZcashApp {
             ins: INS_EXTRACT_TRANSSIG,
             p1: 0x00,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -713,7 +713,7 @@ impl ZcashApp {
             ins: INS_EXTRACT_SPENDSIG,
             p1: 0x00,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -749,7 +749,7 @@ impl ZcashApp {
             ins: INS_CHECKANDSIGN,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: Vec::with_capacity(5 * 4),
+            data: vec![0u8; 20],
         };
 
         let response =
@@ -773,6 +773,7 @@ impl ZcashApp {
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
         let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
         log::info!("sending inittx data to ledger");
+        log::info!("{}", hex::encode(&init_blob));
         let r = self.init_tx(&init_blob).await;
         if r.is_err() {
             return Err(r.err().unwrap());
