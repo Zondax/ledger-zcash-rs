@@ -30,10 +30,11 @@ mod integration_tests {
     use ledger_zcash::{APDUTransport, ZcashApp, PK_LEN_SAPLING, PK_LEN_SECP261K1, *};
     use std::path::Path;
     use zcash_primitives::keys::OutgoingViewingKey;
+    use zcash_primitives::legacy::Script;
     use zcash_primitives::merkle_tree::IncrementalWitness;
     use zcash_primitives::primitives::PaymentAddress;
     use zcash_primitives::primitives::Rseed;
-    use zcash_primitives::transaction::components::Amount;
+    use zcash_primitives::transaction::components::{Amount, OutPoint};
     use zx_bip44::BIP44Path;
 
     fn init_logging() {
@@ -338,6 +339,100 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn do_full_transaction_combinedshieldtransparent() {
+        init_logging();
+
+        let transport = APDUTransport {
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
+        };
+        let app = ZcashApp::new(transport);
+
+        let tin1 = LedgerDataTransparentInput {
+            path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
+            pk: secp256k1::PublicKey::from_slice(
+                hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+            script: Script(
+                hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
+            ),
+            prevout: OutPoint::new([0u8; 32], 0),
+            value: Amount::from_u64(60000).unwrap(),
+        };
+
+        let tout1 = LedgerDataTransparentOutput {
+            value: Amount::from_u64(10000).unwrap(),
+            script_pubkey: Script(
+                hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
+            ),
+        };
+
+        let spend1 = LedgerDataShieldedSpend {
+            path: 1000,
+            address: PaymentAddress::from_bytes(&[
+                198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
+                13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
+                208, 102, 86, 114, 110, 162, 118, 103,
+            ])
+            .unwrap(),
+            value: Amount::from_u64(50000).unwrap(),
+            witness: IncrementalWitness::read(
+                &hex::decode(
+                    "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
+                )
+                .unwrap()[..],
+            )
+            .unwrap(),
+            rseed: Rseed::AfterZip212([0u8; 32]),
+        };
+
+        let output1 = LedgerDataShieldedOutput {
+            value: Amount::from_u64(60000).unwrap(),
+            address: PaymentAddress::from_bytes(&[
+                21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
+                241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
+                237, 141, 242, 117, 102, 204,
+            ])
+            .unwrap(),
+            ovk: None,
+            memo: None,
+        };
+
+        let fee = 1000;
+
+        let txfee = Amount::from_u64(fee).unwrap();
+        let change_amount = spend1.value + tin1.value - tout1.value - output1.value - txfee;
+
+        let output2 = LedgerDataShieldedOutput {
+            value: change_amount,
+            address: PaymentAddress::from_bytes(&[
+                198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
+                13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
+                208, 102, 86, 114, 110, 162, 118, 103,
+            ])
+            .unwrap(),
+            ovk: Some(OutgoingViewingKey([
+                111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240,
+                117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
+            ])),
+            memo: None,
+        };
+
+        let input = LedgerDataInput {
+            txfee: fee,
+            vec_tin: vec![tin1],
+            vec_tout: vec![tout1],
+            vec_sspend: vec![spend1],
+            vec_soutput: vec![output1, output2],
+        };
+
+        let r = app.do_transaction(&input).await;
+        assert!(r.is_ok());
+    }
+
+    #[tokio::test]
     async fn do_full_tx_in_pieces() {
         init_logging();
 
@@ -489,19 +584,5 @@ mod integration_tests {
             spend_sigs.push(req.unwrap());
         }
         log::info!("all signatures retrieved");
-    }
-
-    #[tokio::test]
-    async fn do_zero_sign() {
-        init_logging();
-
-        let transport = APDUTransport {
-            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
-        };
-        let app = ZcashApp::new(transport);
-        let ledgertxblob = [0xaa; 11];
-        let req = app.crashtest(&ledgertxblob).await;
-        assert!(req.is_ok());
-        log::info!("checking and signing succeeded by ledger");
     }
 }

@@ -31,13 +31,14 @@ extern crate hex;
 
 use group::GroupEncoding;
 use zcash_primitives::keys::*;
+use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
 use zcash_primitives::primitives::Rseed;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
-use zcash_primitives::transaction::components::{Amount, TxIn, TxOut};
+use zcash_primitives::transaction::components::{Amount, OutPoint};
 use zcash_primitives::transaction::Transaction;
 use zcashtools::txbuilder_ledger::TransactionMetadata;
 use zcashtools::{
@@ -55,7 +56,9 @@ pub struct LedgerDataTransparentInput {
     ///Public key belonging to the secret key (of the BIP44 path)
     pub pk: secp256k1::PublicKey,
     ///UTXO of transparent input
-    pub txin: TxIn,
+    pub prevout: OutPoint,
+    ///Script of transparent input
+    pub script: Script,
     ///Value of transparent input
     pub value: Amount,
 }
@@ -65,7 +68,7 @@ impl LedgerDataTransparentInput {
     pub fn to_init_data(&self) -> TinData {
         TinData {
             path: self.path.0,
-            address: self.txin.script_sig.clone(),
+            address: self.script.clone(),
             value: self.value,
         }
     }
@@ -73,9 +76,9 @@ impl LedgerDataTransparentInput {
     ///Takes the fields needed to send to the builder
     pub fn to_builder_data(&self) -> TransparentInputBuilderInfo {
         TransparentInputBuilderInfo {
-            outp: self.txin.prevout.clone(),
+            outp: self.prevout.clone(),
             pk: self.pk,
-            address: self.txin.script_sig.clone(),
+            address: self.script.clone(),
             value: self.value,
         }
     }
@@ -83,23 +86,26 @@ impl LedgerDataTransparentInput {
 
 ///Data needed to handle transparent output for sapling transaction
 pub struct LedgerDataTransparentOutput {
-    ///The transparent output address and value
-    pub txout: TxOut,
+    ///The transparent output value
+    pub value: Amount,
+    ///The transparent output script
+    pub script_pubkey: Script,
 }
 
 impl LedgerDataTransparentOutput {
     ///Decouples this struct to send to ledger
     pub fn to_init_data(&self) -> ToutData {
         ToutData {
-            address: self.txout.script_pubkey.clone(),
-            value: self.txout.value,
+            address: self.script_pubkey.clone(),
+            value: self.value,
         }
     }
+
     ///Decouples this struct to send to builder
     pub fn to_builder_data(&self) -> TransparentOutputBuilderInfo {
         TransparentOutputBuilderInfo {
-            address: self.txout.script_pubkey.clone(),
-            value: self.txout.value,
+            address: self.script_pubkey.clone(),
+            value: self.value,
         }
     }
 }
@@ -244,7 +250,6 @@ const INS_CHECKANDSIGN: u8 = 0xa3;
 const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
 const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
 const INS_GET_DIV_LIST: u8 = 0x09;
-const INS_CRASHTEST: u8 = 0xff;
 
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
@@ -848,32 +853,7 @@ impl ZcashApp {
 
         let response =
             ledger_zondax_generic::send_chunks(&self.apdu_transport, &start_command, data).await?;
-        log::info!("init ok");
-
-        if response.data.is_empty() && response.retcode == APDUErrorCodes::NoError as u16 {
-            return Err(LedgerAppError::NoSignature);
-        }
-
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&response.data[..32]);
-        //check hash here?
-        Ok(hash)
-    }
-
-    ///Initiates a transaction in the ledger
-    pub async fn crashtest(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
-        let start_command = APDUCommand {
-            cla: self.cla(),
-            ins: INS_CRASHTEST,
-            p1: ChunkPayloadType::Init as u8,
-            p2: 0x00,
-            data: dummy_path.serialize(),
-        };
-
-        let response =
-            ledger_zondax_generic::send_chunks(&self.apdu_transport, &start_command, data).await?;
-        log::info!("init ok");
+        log::info!("checkandsign ok");
 
         if response.data.is_empty() && response.retcode == APDUErrorCodes::NoError as u16 {
             return Err(LedgerAppError::NoSignature);
