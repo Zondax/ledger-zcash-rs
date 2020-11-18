@@ -511,9 +511,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         diversifier: Diversifier,
         note: Note,
         merkle_path: MerklePath<Node>,
-        alpha: jubjub::Fr,               //get from ledger
-        proofkey: ProofGenerationKey,    //get from ledger
-        rcv: jubjub::Fr,                 //get from ledger
+        alpha: jubjub::Fr,            //get from ledger
+        proofkey: ProofGenerationKey, //get from ledger
+        rcv: jubjub::Fr,              //get from ledger
     ) -> Result<(), Error> {
         // Consistency check: all anchors must equal the first one
         //Fixme: add this later when we get info from chain
@@ -982,7 +982,7 @@ mod tests {
         let mut rng = OsRng;
 
         let note1 = to
-            .create_note(50000, Rseed::BeforeZip212(jubjub::Fr::one())) //fixme))
+            .create_note(50000, Rseed::BeforeZip212(jubjub::Fr::one())) //))
             .unwrap();
         let cmu1 = Node::new(note1.cmu().to_repr());
         let mut tree = CommitmentTree::new();

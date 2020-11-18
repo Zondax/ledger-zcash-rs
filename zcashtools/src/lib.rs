@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_imports, unused_mut, unused_variables, clippy::too_many_arguments)]
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_mut,
+    unused_variables,
+    clippy::too_many_arguments
+)]
 
 mod neon_bridge;
 mod prover_ledger;
@@ -312,7 +318,6 @@ impl ZcashBuilderLedger {
     }
 
     pub fn add_sapling_spend(&mut self, info: SpendBuilderInfo) -> Result<(), Error> {
-        //todo: add decryption here
         let note = info
             .address
             .create_note(u64::from(info.value), info.rseed)
@@ -333,7 +338,6 @@ impl ZcashBuilderLedger {
     }
 
     pub fn add_sapling_output(&mut self, info: OutputBuilderInfo) -> Result<(), Error> {
-        //todo: add decryption here
         let r = self.builder.add_sapling_output(
             info.ovk,
             info.address,

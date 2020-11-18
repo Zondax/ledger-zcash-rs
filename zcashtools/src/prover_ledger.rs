@@ -283,7 +283,7 @@ impl SaplingProvingContextLedger {
 
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
-        //data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());//fixme
+        data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
         (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash[..]);
 
         // Sign
@@ -295,8 +295,8 @@ impl SaplingProvingContextLedger {
     }
 }
 
-impl Default for SaplingProvingContextLedger{
-    fn default() -> Self{
+impl Default for SaplingProvingContextLedger {
+    fn default() -> Self {
         Self::new()
     }
 }
