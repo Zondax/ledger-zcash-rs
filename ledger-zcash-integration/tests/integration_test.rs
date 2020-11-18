@@ -433,6 +433,76 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn do_full_transaction_transparentonly() {
+        init_logging();
+
+        let transport = APDUTransport {
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
+        };
+        let app = ZcashApp::new(transport);
+
+        let tin1 = LedgerDataTransparentInput {
+            path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
+            pk: secp256k1::PublicKey::from_slice(
+                hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+            script: Script(
+                hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
+            ),
+            prevout: OutPoint::new([0u8; 32], 0),
+            value: Amount::from_u64(60000).unwrap(),
+        };
+
+        let tin2 = LedgerDataTransparentInput {
+            path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
+            pk: secp256k1::PublicKey::from_slice(
+                hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+            script: Script(
+                hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
+            ),
+            prevout: OutPoint::new([0u8; 32], 0),
+            value: Amount::from_u64(40000).unwrap(),
+        };
+
+        let tout1 = LedgerDataTransparentOutput {
+            value: Amount::from_u64(70000).unwrap(),
+            script_pubkey: Script(
+                hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
+            ),
+        };
+
+        let fee = 1000;
+
+        let txfee = Amount::from_u64(fee).unwrap();
+        let change_amount = tin1.value + tin2.value - tout1.value - txfee;
+
+        let tout2 = LedgerDataTransparentOutput {
+            value: change_amount,
+            script_pubkey: Script(
+                hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
+            ),
+        };
+
+        let input = LedgerDataInput {
+            txfee: fee,
+            vec_tin: vec![tin1, tin2],
+            vec_tout: vec![tout1, tout2],
+            vec_sspend: vec![],
+            vec_soutput: vec![],
+        };
+
+        let r = app.do_transaction(&input).await;
+        assert!(r.is_ok());
+    }
+
+    #[tokio::test]
     async fn do_full_tx_in_pieces() {
         init_logging();
 
