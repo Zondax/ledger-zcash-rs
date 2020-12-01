@@ -625,8 +625,8 @@ mod integration_tests {
             assert!(r.is_ok());
         }
         let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
-            Path::new("../zcash-hsmbuilder/src/sapling-spend.params"),
-            Path::new("../zcash-hsmbuilder/src/sapling-output.params"),
+            Path::new("../params/sapling-spend.params"),
+            Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
         let r = builder.build(&mut prover);
