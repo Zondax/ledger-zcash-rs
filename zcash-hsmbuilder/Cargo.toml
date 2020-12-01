@@ -1,8 +1,22 @@
 [package]
 name = "zcash-hsmbuilder"
-version = "0.1.0"
+description = "Library to build transactions for HSM apps"
+version = "0.0.1"
+license = "Apache-2.0"
 authors = ["Zondax GmbH <info@zondax.ch>"]
+homepage = "https://github.com/Zondax/ledger-zcash-rs"
+repository = "https://github.com/Zondax/ledger-zcash-rs"
+readme = "README.md"
+categories = ["authentication", "cryptography"]
+keywords = ["ledger", "nano", "apdu", "zcash"]
 edition = "2018"
+autobenches = false
+
+[badges]
+circle-ci = { repository = "zondax/ledger-zcash-rs" }
+
+[lib]
+name = "ledger_hsmbuilder"
 
 [dependencies]
 jubjub = { version = "0.5.1", default-features = false }
@@ -32,4 +46,3 @@ serde = { version = "1.0.117", features = ["derive"] }
 [dependencies.zcash_primitives]
 version = "0.4.0"
 features = ["transparent-inputs"]
-
