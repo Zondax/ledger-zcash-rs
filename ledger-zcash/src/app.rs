@@ -30,6 +30,12 @@ use zx_bip44::BIP44Path;
 extern crate hex;
 
 use group::GroupEncoding;
+use zcash_hsmbuilder::txbuilder_ledger::TransactionMetadata;
+use zcash_hsmbuilder::{
+    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
+    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
+    TransparentOutputBuilderInfo,
+};
 use zcash_primitives::keys::*;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
@@ -40,12 +46,6 @@ use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 use zcash_primitives::transaction::Transaction;
-use zcashtools::txbuilder_ledger::TransactionMetadata;
-use zcashtools::{
-    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
-    TransparentOutputBuilderInfo,
-};
 //use zcash_primitives::transaction::Transaction;
 
 ///Data needed to handle transparent input for sapling transaction
@@ -879,7 +879,7 @@ impl ZcashApp {
             return Err(r.err().unwrap());
         }
 
-        let mut builder = zcashtools::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -919,9 +919,9 @@ impl ZcashApp {
                 return Err(LedgerAppError::Crypto);
             }
         }
-        let mut prover = zcashtools::txprover_ledger::LocalTxProverLedger::new(
-            Path::new("../zcashtools/src/sapling-spend.params"),
-            Path::new("../zcashtools/src/sapling-output.params"),
+        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
+            Path::new("../zcash-hsmbuilder/src/sapling-spend.params"),
+            Path::new("../zcash-hsmbuilder/src/sapling-output.params"),
         );
         log::info!("building the transaction");
         let r = builder.build(&mut prover);

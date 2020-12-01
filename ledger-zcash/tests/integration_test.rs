@@ -597,7 +597,7 @@ mod integration_tests {
 
         assert!(r.is_ok());
 
-        let mut builder = zcashtools::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -624,9 +624,9 @@ mod integration_tests {
             let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
             assert!(r.is_ok());
         }
-        let mut prover = zcashtools::txprover_ledger::LocalTxProverLedger::new(
-            Path::new("../zcashtools/src/sapling-spend.params"),
-            Path::new("../zcashtools/src/sapling-output.params"),
+        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
+            Path::new("../zcash-hsmbuilder/src/sapling-spend.params"),
+            Path::new("../zcash-hsmbuilder/src/sapling-output.params"),
         );
         log::info!("building the transaction");
         let r = builder.build(&mut prover);

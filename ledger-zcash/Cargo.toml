@@ -30,7 +30,7 @@ ledger-zondax-generic = { git = "https://github.com/Zondax/ledger-rs", branch="m
 ledger-transport = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
 hex = "0.4.2"
-zcashtools = { path = "../zcashtools" }
+zcash-hsmbuilder = { path = "../zcash-hsmbuilder" }
 jubjub = { version = "0.5.1", default-features = false }
 secp256k1 = {version="0.19.0",default-features=false}
 group = "0.8.0"
