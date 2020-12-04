@@ -6,12 +6,12 @@
     clippy::too_many_arguments
 )]
 
+pub mod errors;
 mod neon_bridge;
 mod prover_ledger;
 mod sighashdata_ledger;
 pub mod txbuilder_ledger;
 pub mod txprover_ledger;
-pub mod zcashtools_errors;
 
 use blake2b_simd::Params as Blake2bParams;
 use jubjub::AffinePoint;
@@ -36,9 +36,9 @@ use group::{cofactor::CofactorCurveAffine, GroupEncoding};
 use rand::RngCore;
 use rand_core::OsRng;
 
+use crate::errors::Error;
 use crate::sighashdata_ledger::TransactionDataSighash;
 use crate::txbuilder_ledger::*;
-use crate::zcashtools_errors::Error;
 
 #[macro_use]
 extern crate serde;

@@ -35,7 +35,7 @@ use zcash_primitives::redjubjub::Signature;
 
 use zcash_primitives::note_encryption::*;
 
-use crate::zcashtools_errors::Error;
+use crate::errors::Error;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 

@@ -13,7 +13,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-//! Support library for Kusama Ledger Nano S/X apps
+//! Support library for Zcash Ledger Nano S/X apps
 
 #![cfg_attr(
     not(test),
