@@ -1,9 +1,9 @@
 #![allow(
-dead_code,
-unused_imports,
-unused_mut,
-unused_variables,
-clippy::too_many_arguments
+    dead_code,
+    unused_imports,
+    unused_mut,
+    unused_variables,
+    clippy::too_many_arguments
 )]
 
 extern crate hex;
@@ -32,12 +32,14 @@ use zcash_primitives::transaction::Transaction;
 use crate::errors::Error;
 use crate::neon_bridge::*;
 use crate::sighashdata::TransactionDataSighash;
-use crate::txbuilder::*;
+use crate::txbuilder::{
+    NullifierInput, OutputDescription, SpendDescription, TransactionMetadata, TransparentScriptData,
+};
 use crate::txprover::LocalTxProver;
 
 pub mod errors;
 mod neon_bridge;
-mod prover_ledger;
+mod prover;
 mod sighashdata;
 pub mod txbuilder;
 pub mod txprover;
@@ -74,20 +76,20 @@ pub struct ShieldedOutputData {
     pub address: PaymentAddress,
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount,
-    pub memotype: u8,
+    pub memo_type: u8,
     #[serde(deserialize_with = "ovk_deserialize")]
     pub ovk: Option<OutgoingViewingKey>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LedgerInitData {
+pub struct InitData {
     pub t_in: Vec<TinData>,
     pub t_out: Vec<ToutData>,
     pub s_spend: Vec<ShieldedSpendData>,
     pub s_output: Vec<ShieldedOutputData>,
 }
 
-impl LedgerInitData {
+impl InitData {
     pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut data = Vec::new();
 
@@ -118,7 +120,7 @@ impl LedgerInitData {
         for info in self.s_output.iter() {
             data.extend_from_slice(&info.address.to_bytes());
             data.extend_from_slice(&info.value.to_i64_le_bytes());
-            data.push(info.memotype);
+            data.push(info.memo_type);
             if info.ovk.is_some() {
                 data.extend_from_slice(&info.ovk.unwrap().0);
             } else {
@@ -132,8 +134,8 @@ impl LedgerInitData {
 pub struct HsmTxData {
     pub t_script_data: Vec<TransparentScriptData>,
     pub s_spend_old_data: Vec<NullifierInput>,
-    pub s_spend_new_data: Vec<SpendDescriptionLedger>,
-    pub s_output_data: Vec<OutputDescriptionLedger>,
+    pub s_spend_new_data: Vec<SpendDescription>,
+    pub s_output_data: Vec<OutputDescription>,
     pub tx_hash_data: TransactionDataSighash,
 }
 
@@ -161,10 +163,10 @@ pub struct ZcashBuilder {
     secret_key: Option<[u8; 32]>,
     public_key: Option<[u8; 32]>,
     session_key: Option<[u8; 32]>,
-    numtransparentinputs: usize,
-    numtransparentoutputs: usize,
-    numspends: usize,
-    numoutputs: usize,
+    num_transparent_inputs: usize,
+    num_transparent_outputs: usize,
+    num_spends: usize,
+    num_outputs: usize,
     builder: txbuilder::Builder<TestNetwork, OsRng>,
     branch: consensus::BranchId,
 }
@@ -238,10 +240,10 @@ impl ZcashBuilder {
             secret_key: None,
             public_key: None,
             session_key: None,
-            numtransparentinputs: 0,
-            numtransparentoutputs: 0,
-            numspends: 0,
-            numoutputs: 0,
+            num_transparent_inputs: 0,
+            num_transparent_outputs: 0,
+            num_spends: 0,
+            num_outputs: 0,
             builder: txbuilder::Builder::<TestNetwork, OsRng>::new_with_fee(0, fee),
             branch: consensus::BranchId::Sapling,
         }
@@ -299,7 +301,7 @@ impl ZcashBuilder {
         };
         let r = self.builder.add_transparent_input(info.pk, info.outp, coin);
         if r.is_ok() {
-            self.numtransparentinputs += 1;
+            self.num_transparent_inputs += 1;
         }
         r
     }
@@ -312,7 +314,7 @@ impl ZcashBuilder {
             .builder
             .add_transparent_output(info.address, info.value);
         if r.is_ok() {
-            self.numtransparentoutputs += 1;
+            self.num_transparent_outputs += 1;
         }
         r
     }
@@ -332,7 +334,7 @@ impl ZcashBuilder {
             info.rcv,
         );
         if r.is_ok() {
-            self.numspends += 1;
+            self.num_spends += 1;
         }
         r
     }
@@ -347,14 +349,14 @@ impl ZcashBuilder {
             info.rseed,
         );
         if r.is_ok() {
-            self.numoutputs += 1;
+            self.num_outputs += 1;
         }
         r
     }
 
     pub fn build(&mut self, prover: &mut LocalTxProver) -> Result<Vec<u8>, Error> {
         let r = self.builder.build(self.branch, prover);
-        r.map( |v| v.to_hsm_bytes())?
+        r.map(|v| v.to_hsm_bytes())?
     }
 
     pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {

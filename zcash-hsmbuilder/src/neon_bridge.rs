@@ -4,17 +4,17 @@ use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
 use zcash_primitives::keys::OutgoingViewingKey;
-use zcash_primitives::legacy::*;
+use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
-use zcash_primitives::primitives::*;
+use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 
 pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 36];
@@ -23,16 +23,16 @@ pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Erro
 }
 
 pub fn t_pk_deserialize<'de, D>(deserializer: D) -> Result<secp256k1::PublicKey, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     secp256k1::PublicKey::from_str(&str).map_err(D::Error::custom)
 }
 
 pub fn script_deserialize<'de, D>(deserializer: D) -> Result<Script, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 26];
@@ -41,8 +41,8 @@ pub fn script_deserialize<'de, D>(deserializer: D) -> Result<Script, D::Error>
 }
 
 pub fn amount_deserialize<'de, D>(deserializer: D) -> Result<Amount, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let v = u64::deserialize(deserializer)?;
     let r = Amount::from_u64(v);
@@ -53,8 +53,8 @@ pub fn amount_deserialize<'de, D>(deserializer: D) -> Result<Amount, D::Error>
 }
 
 pub fn fr_deserialize<'de, D>(deserializer: D) -> Result<Fr, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 32];
@@ -68,8 +68,8 @@ pub fn fr_deserialize<'de, D>(deserializer: D) -> Result<Fr, D::Error>
 }
 
 pub fn pgk_deserialize<'de, D>(deserializer: D) -> Result<ProofGenerationKey, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 64];
@@ -93,8 +93,8 @@ pub fn pgk_deserialize<'de, D>(deserializer: D) -> Result<ProofGenerationKey, D:
 }
 
 pub fn s_address_deserialize<'de, D>(deserializer: D) -> Result<PaymentAddress, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 43];
@@ -109,8 +109,8 @@ pub fn s_address_deserialize<'de, D>(deserializer: D) -> Result<PaymentAddress, 
 }
 
 pub fn ovk_deserialize<'de, D>(deserializer: D) -> Result<Option<OutgoingViewingKey>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str: Option<String> = Option::deserialize(deserializer)?;
     if let Some(s) = str {
@@ -123,8 +123,8 @@ pub fn ovk_deserialize<'de, D>(deserializer: D) -> Result<Option<OutgoingViewing
 }
 
 pub fn memo_deserialize<'de, D>(deserializer: D) -> Result<Option<Memo>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
 
@@ -138,8 +138,8 @@ pub fn memo_deserialize<'de, D>(deserializer: D) -> Result<Option<Memo>, D::Erro
 }
 
 pub fn witness_deserialize<'de, D>(deserializer: D) -> Result<IncrementalWitness<Node>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let v = hex::decode(str).map_err(D::Error::custom)?;
@@ -150,8 +150,8 @@ pub fn witness_deserialize<'de, D>(deserializer: D) -> Result<IncrementalWitness
 }
 
 pub fn rseed_deserialize<'de, D>(deserializer: D) -> Result<Rseed, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let mut bytes = [0u8; 32];
@@ -161,8 +161,8 @@ pub fn rseed_deserialize<'de, D>(deserializer: D) -> Result<Rseed, D::Error>
 }
 
 pub fn t_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<secp256k1::Signature>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str: Vec<String> = Deserialize::deserialize(deserializer)?;
     if str.is_empty() {
@@ -186,8 +186,8 @@ pub fn t_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<secp256k1::Signa
 }
 
 pub fn s_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<Signature>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let str: Vec<String> = Deserialize::deserialize(deserializer)?;
     if str.is_empty() {

@@ -14,7 +14,7 @@ use zcash_primitives::{
 };
 use zcash_proofs::{default_params_folder, load_parameters};
 
-use crate::prover_ledger::SaplingProvingContextLedger;
+use crate::prover::SaplingProvingContext;
 
 // Circuit names
 const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
@@ -173,10 +173,10 @@ pub trait TxProverLedger {
 }
 
 impl TxProverLedger for LocalTxProver {
-    type SaplingProvingContext = SaplingProvingContextLedger;
+    type SaplingProvingContext = SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
-        SaplingProvingContextLedger::new()
+        SaplingProvingContext::new()
     }
 
     fn spend_proof(

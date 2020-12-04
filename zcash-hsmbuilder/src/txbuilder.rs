@@ -3,35 +3,29 @@ use std::io::{self, Write};
 use std::marker::PhantomData;
 
 use group::GroupEncoding;
-use rand::{CryptoRng, RngCore, rngs::OsRng};
+use rand::{rngs::OsRng, CryptoRng, RngCore};
+use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
+use zcash_primitives::note_encryption::SaplingNoteEncryption;
+use zcash_primitives::primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed};
+use zcash_primitives::redjubjub::Signature;
+use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
+use zcash_primitives::transaction::components::{Amount, TxOut, GROTH_PROOF_SIZE};
+use zcash_primitives::transaction::{
+    signature_hash_data, Transaction, TransactionData, SIGHASH_ALL,
+};
 use zcash_primitives::{
-    consensus,
-    keys::OutgoingViewingKey,
-    legacy::TransparentAddress,
-    merkle_tree::MerklePath,
-    note_encryption::Memo,
-    redjubjub::PublicKey,
-    sapling::Node,
-    transaction::{
-        components::{*, amount::*},
-        SIGHASH_ALL, signature_hash_data, TransactionData,
-    },
-    util::generate_random_rseed,
+    consensus, keys::OutgoingViewingKey, legacy::TransparentAddress, merkle_tree::MerklePath,
+    note_encryption::Memo, redjubjub::PublicKey, sapling::Node, util::generate_random_rseed,
 };
 use zcash_primitives::{
     legacy::Script,
     transaction::components::{OutPoint, TxIn},
 };
-use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
-use zcash_primitives::note_encryption::*;
-use zcash_primitives::primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed};
-use zcash_primitives::redjubjub::Signature;
-use zcash_primitives::transaction::Transaction;
 
 use crate::errors::Error;
-use crate::HsmTxData;
 use crate::sighashdata::signature_hash_input_data;
 use crate::txprover::TxProverLedger;
+use crate::HsmTxData;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 
@@ -40,7 +34,7 @@ const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 const MIN_SHIELDED_OUTPUTS: usize = 2;
 
 #[derive(Clone)]
-struct SpendDescriptionInfoLedger {
+struct SpendDescriptionInfo {
     //extsk: ExtendedSpendingKey, //change this to path in ledger
     diversifier: Diversifier,
     note: Note,
@@ -53,7 +47,7 @@ struct SpendDescriptionInfoLedger {
 }
 
 #[derive(Clone)]
-pub struct SaplingOutputLedger {
+pub struct SaplingOutput {
     /// `None` represents the `ovk = ⊥` case.
     ovk: Option<OutgoingViewingKey>,
     //get from ledger
@@ -63,7 +57,7 @@ pub struct SaplingOutputLedger {
     rcv: jubjub::Fr, //get from ledger
 }
 
-impl SaplingOutputLedger {
+impl SaplingOutput {
     pub fn new<R: RngCore + CryptoRng, P: consensus::Parameters>(
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
@@ -89,7 +83,7 @@ impl SaplingOutputLedger {
             rseed,
         };
 
-        Ok(SaplingOutputLedger {
+        Ok(SaplingOutput {
             ovk,
             to,
             note,
@@ -103,7 +97,7 @@ impl SaplingOutputLedger {
         prover: &P,
         ctx: &mut P::SaplingProvingContext,
         rng: &mut R,
-    ) -> OutputDescription {
+    ) -> zcash_primitives::transaction::components::OutputDescription {
         let mut encryptor = SaplingNoteEncryption::new(
             self.ovk,
             self.note.clone(),
@@ -128,7 +122,7 @@ impl SaplingOutputLedger {
 
         let ephemeral_key = encryptor.epk().clone().into();
 
-        OutputDescription {
+        zcash_primitives::transaction::components::OutputDescription {
             cv,
             cmu,
             ephemeral_key,
@@ -139,14 +133,14 @@ impl SaplingOutputLedger {
     }
 }
 
-struct TransparentInputInfoLedger {
+struct TransparentInputInfo {
     pubkey: secp256k1::PublicKey,
     coin: TxOut,
 }
 
 struct TransparentInputs {
     secp: secp256k1::Secp256k1<secp256k1::VerifyOnly>,
-    inputs: Vec<TransparentInputInfoLedger>,
+    inputs: Vec<TransparentInputInfo>,
 }
 
 impl Default for TransparentInputs {
@@ -181,8 +175,7 @@ impl TransparentInputs {
         }
 
         mtx.vin.push(TxIn::new(utxo));
-        self.inputs
-            .push(TransparentInputInfoLedger { pubkey, coin });
+        self.inputs.push(TransparentInputInfo { pubkey, coin });
 
         Ok(())
     }
@@ -277,8 +270,8 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng> {
     mtx: TransactionData,
     fee: Amount,
     anchor: Option<bls12_381::Scalar>,
-    spends: Vec<SpendDescriptionInfoLedger>,
-    outputs: Vec<SaplingOutputLedger>,
+    spends: Vec<SpendDescriptionInfo>,
+    outputs: Vec<SaplingOutput>,
     transparent_inputs: TransparentInputs,
     phantom: PhantomData<P>,
     pub sighash: [u8; 32],
@@ -303,7 +296,7 @@ impl<P: consensus::Parameters> Builder<P, OsRng> {
     }
 }
 
-fn spend_old_data_fromtx(data: &[SpendDescriptionInfoLedger]) -> Vec<NullifierInput> {
+fn spend_old_data_fromtx(data: &[SpendDescriptionInfo]) -> Vec<NullifierInput> {
     let mut v = Vec::new();
     for info in data.iter() {
         let n = NullifierInput {
@@ -317,7 +310,7 @@ fn spend_old_data_fromtx(data: &[SpendDescriptionInfoLedger]) -> Vec<NullifierIn
 
 fn transparent_script_data_fromtx(
     tx: &TransactionData,
-    inputs: &[TransparentInputInfoLedger],
+    inputs: &[TransparentInputInfo],
 ) -> Result<Vec<TransparentScriptData>, Error> {
     let mut data = Vec::new();
     for (i, info) in inputs.iter().enumerate() {
@@ -345,19 +338,23 @@ fn transparent_script_data_fromtx(
     Ok(data)
 }
 
-fn spenddataledger_fromtx(input: &[SpendDescription]) -> Vec<SpendDescriptionLedger> {
+fn spenddataledger_fromtx(
+    input: &[zcash_primitives::transaction::components::SpendDescription],
+) -> Vec<SpendDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
-        let description = SpendDescriptionLedger::from(info);
+        let description = SpendDescription::from(info);
         data.push(description);
     }
     data
 }
 
-fn outputdataledger_fromtx(input: &[OutputDescription]) -> Vec<OutputDescriptionLedger> {
+fn outputdataledger_fromtx(
+    input: &[zcash_primitives::transaction::components::OutputDescription],
+) -> Vec<OutputDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
-        let description = OutputDescriptionLedger::from(info);
+        let description = OutputDescription::from(info);
         data.push(description);
     }
     data
@@ -394,7 +391,7 @@ impl TransparentScriptData {
 }
 
 #[derive(Clone)]
-pub struct SpendDescriptionLedger {
+pub struct SpendDescription {
     pub cv: [u8; 32],
     pub anchor: [u8; 32],
     pub nullifier: [u8; 32],
@@ -402,9 +399,11 @@ pub struct SpendDescriptionLedger {
     pub zkproof: [u8; GROTH_PROOF_SIZE],
 }
 
-impl SpendDescriptionLedger {
-    pub fn from(info: &SpendDescription) -> SpendDescriptionLedger {
-        SpendDescriptionLedger {
+impl SpendDescription {
+    pub fn from(
+        info: &zcash_primitives::transaction::components::SpendDescription,
+    ) -> SpendDescription {
+        SpendDescription {
             cv: info.cv.to_bytes(),
             anchor: info.anchor.to_bytes(),
             nullifier: info.nullifier,
@@ -423,7 +422,7 @@ impl SpendDescriptionLedger {
 }
 
 #[derive(Clone)]
-pub struct OutputDescriptionLedger {
+pub struct OutputDescription {
     pub cv: [u8; 32],
     pub cmu: [u8; 32],
     pub ephemeral_key: [u8; 32],
@@ -432,9 +431,11 @@ pub struct OutputDescriptionLedger {
     pub zkproof: [u8; GROTH_PROOF_SIZE],
 }
 
-impl OutputDescriptionLedger {
-    pub fn from(info: &OutputDescription) -> OutputDescriptionLedger {
-        OutputDescriptionLedger {
+impl OutputDescription {
+    pub fn from(
+        info: &zcash_primitives::transaction::components::OutputDescription,
+    ) -> OutputDescription {
+        OutputDescription {
             cv: info.cv.to_bytes(),
             cmu: info.cmu.to_bytes(),
             ephemeral_key: info.ephemeral_key.to_bytes(),
@@ -531,7 +532,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
         self.mtx.value_balance += Amount::from_u64(note.value).map_err(|_| Error::InvalidAmount)?;
 
-        self.spends.push(SpendDescriptionInfoLedger {
+        self.spends.push(SpendDescriptionInfo {
             diversifier,
             note,
             alpha,
@@ -553,7 +554,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         rcv: jubjub::Fr,
         rseed: Rseed,
     ) -> Result<(), Error> {
-        let output = SaplingOutputLedger::new::<R, P>(ovk, to, value, memo, rcv, rseed)?;
+        let output = SaplingOutput::new::<R, P>(ovk, to, value, memo, rcv, rseed)?;
 
         self.mtx.value_balance -= value;
 
@@ -629,11 +630,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Valid change
         let change = self.mtx.value_balance - self.fee + self.transparent_inputs.value_sum()
             - self
-            .mtx
-            .vout
-            .iter()
-            .map(|output| output.value)
-            .sum::<Amount>();
+                .mtx
+                .vout
+                .iter()
+                .map(|output| output.value)
+                .sum::<Amount>();
         if change.is_negative() {
             return Err(Error::ChangeIsNegative);
         }
@@ -695,14 +696,16 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                     )
                     .map_err(|()| Error::SpendProof)?;
 
-                self.mtx.shielded_spends.push(SpendDescription {
-                    cv,
-                    anchor,
-                    nullifier,
-                    rk: PublicKey(rk.0),
-                    zkproof,
-                    spend_auth_sig: None,
-                });
+                self.mtx.shielded_spends.push(
+                    zcash_primitives::transaction::components::SpendDescription {
+                        cv,
+                        anchor,
+                        nullifier,
+                        rk: PublicKey(rk.0),
+                        zkproof,
+                        spend_auth_sig: None,
+                    },
+                );
 
                 // Record the post-randomized spend location
             }
@@ -853,7 +856,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         txdata_copy.value_balance = self.mtx.value_balance;
         txdata_copy.shielded_spends = vec![];
         for info in self.mtx.shielded_spends.iter() {
-            let spend = SpendDescription {
+            let spend = zcash_primitives::transaction::components::SpendDescription {
                 cv: info.cv,
                 anchor: info.anchor,
                 nullifier: info.nullifier,
@@ -865,7 +868,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         }
 
         for info in self.mtx.shielded_outputs.iter() {
-            let output = OutputDescription {
+            let output = zcash_primitives::transaction::components::OutputDescription {
                 cv: info.cv,
                 cmu: info.cmu,
                 ephemeral_key: info.ephemeral_key,

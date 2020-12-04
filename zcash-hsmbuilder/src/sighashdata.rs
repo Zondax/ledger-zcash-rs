@@ -152,10 +152,10 @@ fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
     let mut data = Vec::with_capacity(
         tx.joinsplits.len()
             * if tx.version < SAPLING_TX_VERSION {
-            1802 // JSDescription with PHGR13 proof
-        } else {
-            1698 // JSDescription with Groth16 proof
-        },
+                1802 // JSDescription with PHGR13 proof
+            } else {
+                1698 // JSDescription with Groth16 proof
+            },
     );
     for js in &tx.joinsplits {
         js.write(&mut data).unwrap();
