@@ -1,16 +1,16 @@
-use jubjub::{Fr, SubgroupPoint};
-use zcash_primitives::legacy::*;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
+use std::str::*;
 
 use group::GroupEncoding;
+use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
-use std::str::*;
 use zcash_primitives::keys::OutgoingViewingKey;
+use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
-use zcash_primitives::primitives::*;
+use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
+use zcash_primitives::transaction::components::{Amount, OutPoint};
 
 pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>
 where

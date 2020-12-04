@@ -13,7 +13,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-//! Support library for Kusama Ledger Nano S/X apps
+//! Support library for Zcash Ledger Nano S/X apps
 
 #![cfg_attr(
     not(test),
@@ -28,13 +28,13 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-mod app;
-
 pub use ledger_transport::errors::TransportError;
 #[cfg(target_arch = "wasm32")]
 pub use ledger_transport::TransportWrapperTrait;
 pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCodes, APDUTransport};
+pub use ledger_zondax_generic::LedgerAppError;
 
 /// Ledger app
 pub use app::*;
-pub use ledger_zondax_generic::LedgerAppError;
+
+mod app;

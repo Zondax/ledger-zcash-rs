@@ -18,17 +18,17 @@
 #![deny(missing_docs)]
 
 extern crate hex;
+extern crate ledger_zcash;
 #[macro_use]
 extern crate matches;
 #[macro_use]
 extern crate serial_test;
-extern crate ledger_zcash;
 
 #[cfg(test)]
 mod integration_tests {
-    use env_logger::Env;
-    use ledger_zcash::{APDUTransport, ZcashApp, PK_LEN_SAPLING, PK_LEN_SECP261K1, *};
     use std::path::Path;
+
+    use env_logger::Env;
     use zcash_primitives::keys::OutgoingViewingKey;
     use zcash_primitives::legacy::Script;
     use zcash_primitives::merkle_tree::IncrementalWitness;
@@ -36,6 +36,8 @@ mod integration_tests {
     use zcash_primitives::primitives::Rseed;
     use zcash_primitives::transaction::components::{Amount, OutPoint};
     use zx_bip44::BIP44Path;
+
+    use ledger_zcash::{APDUTransport, ZcashApp, PK_LEN_SAPLING, PK_LEN_SECP261K1, *};
 
     fn init_logging() {
         let _ = env_logger::from_env(Env::default().default_filter_or("info"))
@@ -63,7 +65,7 @@ mod integration_tests {
         println!("patch {}", resp.patch);
         println!("locked {}", resp.locked);
 
-        assert!(resp.major == 2);
+        assert_eq!(resp.major, 2);
     }
 
     #[tokio::test]
@@ -256,7 +258,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let spend1 = LedgerDataShieldedSpend {
+        let spend1 = DataShieldedSpend {
             path: 1000,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -275,7 +277,7 @@ mod integration_tests {
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
-        let spend2 = LedgerDataShieldedSpend {
+        let spend2 = DataShieldedSpend {
             path: 1000,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -294,7 +296,7 @@ mod integration_tests {
             rseed: Rseed::AfterZip212([0xFF; 32]),
         };
 
-        let output1 = LedgerDataShieldedOutput {
+        let output1 = DataShieldedOutput {
             value: Amount::from_u64(60000).unwrap(),
             address: PaymentAddress::from_bytes(&[
                 21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
@@ -311,7 +313,7 @@ mod integration_tests {
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = spend1.value + spend2.value - output1.value - txfee;
 
-        let output2 = LedgerDataShieldedOutput {
+        let output2 = DataShieldedOutput {
             value: change_amount,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -326,7 +328,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let input = LedgerDataInput {
+        let input = DataInput {
             txfee: fee,
             vec_tin: vec![],
             vec_tout: vec![],
@@ -347,7 +349,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let tin1 = LedgerDataTransparentInput {
+        let tin1 = DataTransparentInput {
             path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
             pk: secp256k1::PublicKey::from_slice(
                 hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
@@ -362,14 +364,14 @@ mod integration_tests {
             value: Amount::from_u64(60000).unwrap(),
         };
 
-        let tout1 = LedgerDataTransparentOutput {
+        let tout1 = DataTransparentOutput {
             value: Amount::from_u64(10000).unwrap(),
             script_pubkey: Script(
                 hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
             ),
         };
 
-        let spend1 = LedgerDataShieldedSpend {
+        let spend1 = DataShieldedSpend {
             path: 1000,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -388,7 +390,7 @@ mod integration_tests {
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
-        let output1 = LedgerDataShieldedOutput {
+        let output1 = DataShieldedOutput {
             value: Amount::from_u64(60000).unwrap(),
             address: PaymentAddress::from_bytes(&[
                 21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
@@ -405,7 +407,7 @@ mod integration_tests {
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = spend1.value + tin1.value - tout1.value - output1.value - txfee;
 
-        let output2 = LedgerDataShieldedOutput {
+        let output2 = DataShieldedOutput {
             value: change_amount,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -420,7 +422,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let input = LedgerDataInput {
+        let input = DataInput {
             txfee: fee,
             vec_tin: vec![tin1],
             vec_tout: vec![tout1],
@@ -441,7 +443,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let tin1 = LedgerDataTransparentInput {
+        let tin1 = DataTransparentInput {
             path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
             pk: secp256k1::PublicKey::from_slice(
                 hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
@@ -456,7 +458,7 @@ mod integration_tests {
             value: Amount::from_u64(60000).unwrap(),
         };
 
-        let tin2 = LedgerDataTransparentInput {
+        let tin2 = DataTransparentInput {
             path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
             pk: secp256k1::PublicKey::from_slice(
                 hex::decode("031f6d238009787c20d5d7becb6b6ad54529fc0a3fd35088e85c2c3966bfec050e")
@@ -471,7 +473,7 @@ mod integration_tests {
             value: Amount::from_u64(40000).unwrap(),
         };
 
-        let tout1 = LedgerDataTransparentOutput {
+        let tout1 = DataTransparentOutput {
             value: Amount::from_u64(70000).unwrap(),
             script_pubkey: Script(
                 hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
@@ -483,14 +485,14 @@ mod integration_tests {
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = tin1.value + tin2.value - tout1.value - txfee;
 
-        let tout2 = LedgerDataTransparentOutput {
+        let tout2 = DataTransparentOutput {
             value: change_amount,
             script_pubkey: Script(
                 hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
             ),
         };
 
-        let input = LedgerDataInput {
+        let input = DataInput {
             txfee: fee,
             vec_tin: vec![tin1, tin2],
             vec_tout: vec![tout1, tout2],
@@ -511,7 +513,7 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let spend1 = LedgerDataShieldedSpend {
+        let spend1 = DataShieldedSpend {
             path: 1000,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -530,7 +532,7 @@ mod integration_tests {
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
-        let spend2 = LedgerDataShieldedSpend {
+        let spend2 = DataShieldedSpend {
             path: 1000,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -549,7 +551,7 @@ mod integration_tests {
             rseed: Rseed::AfterZip212([0xFF; 32]),
         };
 
-        let output1 = LedgerDataShieldedOutput {
+        let output1 = DataShieldedOutput {
             value: Amount::from_u64(60000).unwrap(),
             address: PaymentAddress::from_bytes(&[
                 21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
@@ -566,7 +568,7 @@ mod integration_tests {
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = spend1.value + spend2.value - output1.value - txfee;
 
-        let output2 = LedgerDataShieldedOutput {
+        let output2 = DataShieldedOutput {
             value: change_amount,
             address: PaymentAddress::from_bytes(&[
                 198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54,
@@ -581,7 +583,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let input = LedgerDataInput {
+        let input = DataInput {
             txfee: fee,
             vec_tin: vec![],
             vec_tout: vec![],
@@ -589,7 +591,7 @@ mod integration_tests {
             vec_soutput: vec![output1, output2],
         };
 
-        let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
+        let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
 
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&init_blob));
@@ -597,7 +599,7 @@ mod integration_tests {
 
         assert!(r.is_ok());
 
-        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -624,7 +626,7 @@ mod integration_tests {
             let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
             assert!(r.is_ok());
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
+        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );

@@ -16,7 +16,7 @@ autobenches = false
 circle-ci = { repository = "zondax/ledger-zcash-rs" }
 
 [lib]
-name = "ledger_hsmbuilder"
+name = "zcash_hsmbuilder"
 
 [dependencies]
 jubjub = { version = "0.5.1", default-features = false }

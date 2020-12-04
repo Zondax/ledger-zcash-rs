@@ -1,5 +1,7 @@
 //! Abstractions over the proving system and parameters for ease of use.
 
+use std::path::Path;
+
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use zcash_primitives::{
@@ -10,8 +12,9 @@ use zcash_primitives::{
     sapling::Node,
     transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
+use zcash_proofs::{default_params_folder, load_parameters};
 
-use crate::prover_ledger::SaplingProvingContextLedger;
+use crate::prover::SaplingProvingContext;
 
 // Circuit names
 const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
@@ -22,18 +25,15 @@ const SAPLING_SPEND_HASH: &str = "8270785a1a0d0bc77196f000ee6d221c9c9894f55307bd
 const SAPLING_OUTPUT_HASH: &str = "657e3d38dbb5cb5e7dd2970e8b03d69b4787dd907285b5a7f0790dcc8072f60bf593b32cc2d1c030e00ff5ae64bf84c5c3beb84ddc841d48264b4a171744d028";
 const SPROUT_HASH: &str = "e9b238411bd6c0ec4791e9d04245ec350c9c5744f5610dfcce4365d5ca49dfefd5054e371842b3f88fa1b9d7e8e075249b3ebabd167fa8b0f3161292d36c180a";
 
-use std::path::Path;
-use zcash_proofs::{default_params_folder, load_parameters};
-
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
 /// locally-accessible paths.
-pub struct LocalTxProverLedger {
+pub struct LocalTxProver {
     spend_params: Parameters<Bls12>,
     spend_vk: PreparedVerifyingKey<Bls12>,
     output_params: Parameters<Bls12>,
 }
 
-impl LocalTxProverLedger {
+impl LocalTxProver {
     /// Creates a `LocalTxProver` using parameters from the given local paths.
     ///
     /// # Examples
@@ -55,7 +55,7 @@ impl LocalTxProverLedger {
     pub fn new(spend_path: &Path, output_path: &Path) -> Self {
         let (spend_params, spend_vk, output_params, _, _) =
             load_parameters(spend_path, output_path, None);
-        LocalTxProverLedger {
+        LocalTxProver {
             spend_params,
             spend_vk,
             output_params,
@@ -99,7 +99,7 @@ impl LocalTxProverLedger {
             return None;
         }
 
-        Some(LocalTxProverLedger::new(&spend_path, &output_path))
+        Some(LocalTxProver::new(&spend_path, &output_path))
     }
 
     /// Creates a `LocalTxProver` using Sapling parameters bundled inside the binary.
@@ -113,7 +113,7 @@ impl LocalTxProverLedger {
         let (spend_params, spend_vk, output_params, _, _) =
             parse_parameters(&spend_buf[..], &output_buf[..], None);
 
-        LocalTxProverLedger {
+        LocalTxProver {
             spend_params,
             spend_vk,
             output_params,
@@ -172,11 +172,11 @@ pub trait TxProverLedger {
     ) -> Result<Signature, ()>;
 }
 
-impl TxProverLedger for LocalTxProverLedger {
-    type SaplingProvingContext = SaplingProvingContextLedger;
+impl TxProverLedger for LocalTxProver {
+    type SaplingProvingContext = SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
-        SaplingProvingContextLedger::new()
+        SaplingProvingContext::new()
     }
 
     fn spend_proof(

@@ -24,17 +24,16 @@ lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0.20"
 log = "0.4.11"
-
 zx-bip44 = "0.1.0"
 ledger-zondax-generic = "0.7.0"
 ledger-transport = "0.7.0"
 ledger-transport-hid = "0.7.0"
 hex = "0.4.2"
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.0.1" }
 jubjub = { version = "0.5.1", default-features = false }
 secp256k1 = { version = "0.19.0", default-features = false }
 group = "0.8.0"
 
+zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.0.1" }
 
 [dependencies.zcash_primitives]
 version = "0.4.0"
