@@ -29,9 +29,9 @@ use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::transaction::Transaction;
 
 use crate::errors::Error;
-use crate::LedgerTxData;
-use crate::sighashdata_ledger::signature_hash_input_data;
-use crate::txprover_ledger::TxProverLedger;
+use crate::HsmTxData;
+use crate::sighashdata::signature_hash_input_data;
+use crate::txprover::TxProverLedger;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 
@@ -616,7 +616,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         &mut self,
         consensus_branch_id: consensus::BranchId,
         prover: &impl TxProverLedger,
-    ) -> Result<LedgerTxData, Error> {
+    ) -> Result<HsmTxData, Error> {
         let mut localrng = OsRng;
 
         let mut buf = [0u8; 64];
@@ -748,7 +748,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         let spenddata = spenddataledger_fromtx(&self.mtx.shielded_spends);
         let outputdata = outputdataledger_fromtx(&self.mtx.shielded_outputs);
 
-        Ok(LedgerTxData {
+        Ok(HsmTxData {
             t_script_data: trans_scripts,
             s_spend_old_data: spend_olddata,
             s_spend_new_data: spenddata,

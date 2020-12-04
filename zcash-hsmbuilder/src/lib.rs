@@ -18,31 +18,29 @@ use jubjub::AffinePoint;
 use rand::RngCore;
 use rand_core::OsRng;
 use zcash_primitives::consensus;
-use zcash_primitives::consensus::*;
-use zcash_primitives::keys::*;
-use zcash_primitives::legacy::*;
-use zcash_primitives::merkle_tree::*;
+use zcash_primitives::consensus::TestNetwork;
+use zcash_primitives::keys::OutgoingViewingKey;
+use zcash_primitives::legacy::Script;
+use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
-use zcash_primitives::primitives::*;
-use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
-use zcash_primitives::redjubjub::*;
-use zcash_primitives::sapling::*;
-use zcash_primitives::transaction::components::*;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
+use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
+use zcash_primitives::redjubjub::Signature;
+use zcash_primitives::sapling::Node;
+use zcash_primitives::transaction::components::{Amount, OutPoint, TxOut};
 use zcash_primitives::transaction::Transaction;
 
 use crate::errors::Error;
 use crate::neon_bridge::*;
-use crate::sighashdata_ledger::TransactionDataSighash;
-use crate::txbuilder_ledger::*;
-use crate::txprover_ledger::LocalTxProver;
+use crate::sighashdata::TransactionDataSighash;
+use crate::txbuilder::*;
+use crate::txprover::LocalTxProver;
 
 pub mod errors;
 mod neon_bridge;
 mod prover_ledger;
-mod sighashdata_ledger;
-pub mod txbuilder_ledger;
-pub mod txprover_ledger;
+mod sighashdata;
+pub mod txbuilder;
+pub mod txprover;
 
 #[derive(Debug, Deserialize)]
 pub struct TinData {
@@ -90,7 +88,7 @@ pub struct LedgerInitData {
 }
 
 impl LedgerInitData {
-    pub fn to_ledger_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut data = Vec::new();
 
         data.push(self.t_in.len() as u8);
@@ -131,7 +129,7 @@ impl LedgerInitData {
     }
 }
 
-pub struct LedgerTxData {
+pub struct HsmTxData {
     pub t_script_data: Vec<TransparentScriptData>,
     pub s_spend_old_data: Vec<NullifierInput>,
     pub s_spend_new_data: Vec<SpendDescriptionLedger>,
@@ -139,8 +137,8 @@ pub struct LedgerTxData {
     pub tx_hash_data: TransactionDataSighash,
 }
 
-impl LedgerTxData {
-    pub fn to_ledger_bytes(&self) -> Result<Vec<u8>, Error> {
+impl HsmTxData {
+    pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut data = Vec::new();
         for t_data in self.t_script_data.iter() {
             t_data.write(&mut data)?;
@@ -167,7 +165,7 @@ pub struct ZcashBuilder {
     numtransparentoutputs: usize,
     numspends: usize,
     numoutputs: usize,
-    builder: txbuilder_ledger::Builder<TestNetwork, OsRng>,
+    builder: txbuilder::Builder<TestNetwork, OsRng>,
     branch: consensus::BranchId,
 }
 
@@ -244,7 +242,7 @@ impl ZcashBuilder {
             numtransparentoutputs: 0,
             numspends: 0,
             numoutputs: 0,
-            builder: txbuilder_ledger::Builder::<TestNetwork, OsRng>::new_with_fee(0, fee),
+            builder: txbuilder::Builder::<TestNetwork, OsRng>::new_with_fee(0, fee),
             branch: consensus::BranchId::Sapling,
         }
     }
@@ -359,7 +357,7 @@ impl ZcashBuilder {
         match r.is_ok() {
             true => {
                 let tx_ledger_data = r.unwrap();
-                tx_ledger_data.to_ledger_bytes()
+                tx_ledger_data.to_hsm_bytes()
             }
             false => Err(r.err().unwrap()),
         }

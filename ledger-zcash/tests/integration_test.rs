@@ -591,7 +591,7 @@ mod integration_tests {
             vec_soutput: vec![output1, output2],
         };
 
-        let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
+        let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
 
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&init_blob));
@@ -626,7 +626,7 @@ mod integration_tests {
             let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
             assert!(r.is_ok());
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProver::new(
+        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );

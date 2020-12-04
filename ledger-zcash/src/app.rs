@@ -46,7 +46,7 @@ use zcash_hsmbuilder::{
     TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
     TransparentOutputBuilderInfo,
 };
-use zcash_hsmbuilder::txbuilder_ledger::TransactionMetadata;
+use zcash_hsmbuilder::txbuilder::TransactionMetadata;
 
 
 //use zcash_primitives::transaction::Transaction;
@@ -873,7 +873,7 @@ impl ZcashApp {
         &self,
         input: &LedgerDataInput,
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
-        let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
+        let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
 
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&init_blob));
@@ -922,7 +922,7 @@ impl ZcashApp {
                 return Err(LedgerAppError::Crypto);
             }
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProver::new(
+        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
