@@ -1,15 +1,9 @@
 //! Structs for building transactions.
-use crate::txprover_ledger::TxProverLedger;
-use group::GroupEncoding;
-use rand::{rngs::OsRng, CryptoRng, RngCore};
 use std::io::{self, Write};
 use std::marker::PhantomData;
-use zcash_primitives::primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed};
-use zcash_primitives::transaction::Transaction;
 
-use crate::sighashdata_ledger::signature_hash_input_data;
-use crate::LedgerTxData;
-
+use group::GroupEncoding;
+use rand::{CryptoRng, RngCore, rngs::OsRng};
 use zcash_primitives::{
     consensus,
     keys::OutgoingViewingKey,
@@ -19,23 +13,25 @@ use zcash_primitives::{
     redjubjub::PublicKey,
     sapling::Node,
     transaction::{
-        components::{amount::*, *},
-        signature_hash_data, TransactionData, SIGHASH_ALL,
+        components::{*, amount::*},
+        SIGHASH_ALL, signature_hash_data, TransactionData,
     },
     util::generate_random_rseed,
 };
-
 use zcash_primitives::{
     legacy::Script,
     transaction::components::{OutPoint, TxIn},
 };
-
 use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
-use zcash_primitives::redjubjub::Signature;
-
 use zcash_primitives::note_encryption::*;
+use zcash_primitives::primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed};
+use zcash_primitives::redjubjub::Signature;
+use zcash_primitives::transaction::Transaction;
 
 use crate::errors::Error;
+use crate::LedgerTxData;
+use crate::sighashdata_ledger::signature_hash_input_data;
+use crate::txprover_ledger::TxProverLedger;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 
@@ -48,16 +44,19 @@ struct SpendDescriptionInfoLedger {
     //extsk: ExtendedSpendingKey, //change this to path in ledger
     diversifier: Diversifier,
     note: Note,
-    alpha: jubjub::Fr, //get both from ledger and generate self
+    alpha: jubjub::Fr,
+    //get both from ledger and generate self
     merkle_path: MerklePath<Node>,
-    proofkey: ProofGenerationKey, //get from ledger
+    proofkey: ProofGenerationKey,
+    //get from ledger
     rcv: jubjub::Fr,
 }
 
 #[derive(Clone)]
 pub struct SaplingOutputLedger {
     /// `None` represents the `ovk = ⊥` case.
-    ovk: Option<OutgoingViewingKey>, //get from ledger
+    ovk: Option<OutgoingViewingKey>,
+    //get from ledger
     to: PaymentAddress,
     note: Note,
     memo: Memo,
@@ -630,11 +629,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Valid change
         let change = self.mtx.value_balance - self.fee + self.transparent_inputs.value_sum()
             - self
-                .mtx
-                .vout
-                .iter()
-                .map(|output| output.value)
-                .sum::<Amount>();
+            .mtx
+            .vout
+            .iter()
+            .map(|output| output.value)
+            .sum::<Amount>();
         if change.is_negative() {
             return Err(Error::ChangeIsNegative);
         }

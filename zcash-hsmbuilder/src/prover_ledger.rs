@@ -1,6 +1,8 @@
+use std::ops::{AddAssign, Neg};
+
 use bellman::{
     gadgets::multipack,
-    groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
+    groth16::{create_random_proof, Parameters, PreparedVerifyingKey, Proof, verify_proof},
 };
 //use pairing::bls12_381::Bls12;
 use bls12_381::Bls12;
@@ -11,9 +13,6 @@ use jubjub::*;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-use std::ops::{AddAssign, Neg};
-use zcash_primitives::consensus::*;
-use zcash_primitives::prover::TxProver;
 use zcash_primitives::{
     constants::{
         SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
@@ -25,6 +24,8 @@ use zcash_primitives::{
     sapling::Node,
     transaction::components::Amount,
 };
+use zcash_primitives::consensus::*;
+use zcash_primitives::prover::TxProver;
 use zcash_proofs::circuit::sapling::{Output, Spend};
 
 fn compute_value_balance_ledger(value: Amount) -> Option<jubjub::ExtendedPoint> {

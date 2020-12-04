@@ -16,25 +16,26 @@
 //! Support library for Zcash Ledger Nano S/X apps
 
 #![cfg_attr(
-    not(test),
-    deny(
-        clippy::option_unwrap_used,
-        clippy::option_expect_used,
-        clippy::result_unwrap_used,
-        clippy::result_expect_used,
-    )
+not(test),
+deny(
+clippy::option_unwrap_used,
+clippy::option_expect_used,
+clippy::result_unwrap_used,
+clippy::result_expect_used,
+)
 )]
 #![deny(warnings, trivial_casts, trivial_numeric_casts)]
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-mod app;
-
+pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCodes, APDUTransport};
 pub use ledger_transport::errors::TransportError;
 #[cfg(target_arch = "wasm32")]
 pub use ledger_transport::TransportWrapperTrait;
-pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCodes, APDUTransport};
+pub use ledger_zondax_generic::LedgerAppError;
 
 /// Ledger app
 pub use app::*;
-pub use ledger_zondax_generic::LedgerAppError;
+
+mod app;
+

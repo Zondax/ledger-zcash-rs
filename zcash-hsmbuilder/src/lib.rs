@@ -1,20 +1,22 @@
 #![allow(
-    dead_code,
-    unused_imports,
-    unused_mut,
-    unused_variables,
-    clippy::too_many_arguments
+dead_code,
+unused_imports,
+unused_mut,
+unused_variables,
+clippy::too_many_arguments
 )]
 
-pub mod errors;
-mod neon_bridge;
-mod prover_ledger;
-mod sighashdata_ledger;
-pub mod txbuilder_ledger;
-pub mod txprover_ledger;
+extern crate hex;
+#[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 use blake2b_simd::Params as Blake2bParams;
+use group::{cofactor::CofactorCurveAffine, GroupEncoding};
 use jubjub::AffinePoint;
+use rand::RngCore;
+use rand_core::OsRng;
 use zcash_primitives::consensus;
 use zcash_primitives::consensus::*;
 use zcash_primitives::keys::*;
@@ -29,22 +31,18 @@ use zcash_primitives::transaction::components::*;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 use zcash_primitives::transaction::Transaction;
 
-extern crate hex;
-
-use crate::txprover_ledger::LocalTxProverLedger;
-use group::{cofactor::CofactorCurveAffine, GroupEncoding};
-use rand::RngCore;
-use rand_core::OsRng;
-
 use crate::errors::Error;
+use crate::neon_bridge::*;
 use crate::sighashdata_ledger::TransactionDataSighash;
 use crate::txbuilder_ledger::*;
+use crate::txprover_ledger::LocalTxProver;
 
-#[macro_use]
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-use crate::neon_bridge::*;
+pub mod errors;
+mod neon_bridge;
+mod prover_ledger;
+mod sighashdata_ledger;
+pub mod txbuilder_ledger;
+pub mod txprover_ledger;
 
 #[derive(Debug, Deserialize)]
 pub struct TinData {
@@ -54,6 +52,7 @@ pub struct TinData {
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct ToutData {
     #[serde(deserialize_with = "script_deserialize")]
@@ -61,6 +60,7 @@ pub struct ToutData {
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct ShieldedSpendData {
     pub path: u32,
@@ -69,6 +69,7 @@ pub struct ShieldedSpendData {
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct ShieldedOutputData {
     #[serde(deserialize_with = "s_address_deserialize")]
@@ -158,7 +159,7 @@ impl LedgerTxData {
     }
 }
 
-pub struct ZcashBuilderLedger {
+pub struct ZcashBuilder {
     secret_key: Option<[u8; 32]>,
     public_key: Option<[u8; 32]>,
     session_key: Option<[u8; 32]>,
@@ -185,7 +186,8 @@ pub struct TransparentInputBuilderInfo {
 #[derive(Debug, Deserialize)]
 pub struct TransparentOutputBuilderInfo {
     #[serde(deserialize_with = "script_deserialize")]
-    pub address: Script, //26
+    pub address: Script,
+    //26
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount, //8
 }
@@ -232,9 +234,9 @@ pub struct TransactionSignatures {
     pub spend_sigs: Vec<Signature>,
 }
 
-impl ZcashBuilderLedger {
-    pub fn new(fee: u64) -> ZcashBuilderLedger {
-        ZcashBuilderLedger {
+impl ZcashBuilder {
+    pub fn new(fee: u64) -> ZcashBuilder {
+        ZcashBuilder {
             secret_key: None,
             public_key: None,
             session_key: None,
@@ -352,7 +354,7 @@ impl ZcashBuilderLedger {
         r
     }
 
-    pub fn build(&mut self, prover: &mut LocalTxProverLedger) -> Result<Vec<u8>, Error> {
+    pub fn build(&mut self, prover: &mut LocalTxProver) -> Result<Vec<u8>, Error> {
         let r = self.builder.build(self.branch, prover);
         match r.is_ok() {
             true => {

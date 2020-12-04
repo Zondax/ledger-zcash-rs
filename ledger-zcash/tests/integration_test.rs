@@ -18,17 +18,17 @@
 #![deny(missing_docs)]
 
 extern crate hex;
+extern crate ledger_zcash;
 #[macro_use]
 extern crate matches;
 #[macro_use]
 extern crate serial_test;
-extern crate ledger_zcash;
 
 #[cfg(test)]
 mod integration_tests {
-    use env_logger::Env;
-    use ledger_zcash::{APDUTransport, ZcashApp, PK_LEN_SAPLING, PK_LEN_SECP261K1, *};
     use std::path::Path;
+
+    use env_logger::Env;
     use zcash_primitives::keys::OutgoingViewingKey;
     use zcash_primitives::legacy::Script;
     use zcash_primitives::merkle_tree::IncrementalWitness;
@@ -36,6 +36,8 @@ mod integration_tests {
     use zcash_primitives::primitives::Rseed;
     use zcash_primitives::transaction::components::{Amount, OutPoint};
     use zx_bip44::BIP44Path;
+
+    use ledger_zcash::{*, APDUTransport, PK_LEN_SAPLING, PK_LEN_SECP261K1, ZcashApp};
 
     fn init_logging() {
         let _ = env_logger::from_env(Env::default().default_filter_or("info"))
@@ -63,7 +65,7 @@ mod integration_tests {
         println!("patch {}", resp.patch);
         println!("locked {}", resp.locked);
 
-        assert!(resp.major == 2);
+        assert_eq!(resp.major, 2);
     }
 
     #[tokio::test]
@@ -263,15 +265,15 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
                 )
-                .unwrap()[..],
+                    .unwrap()[..],
             )
-            .unwrap(),
+                .unwrap(),
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
@@ -282,15 +284,15 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
                 )
-                .unwrap()[..],
+                    .unwrap()[..],
             )
-            .unwrap(),
+                .unwrap(),
             rseed: Rseed::AfterZip212([0xFF; 32]),
         };
 
@@ -301,7 +303,7 @@ mod integration_tests {
                 241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
                 237, 141, 242, 117, 102, 204,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: None,
             memo: None,
         };
@@ -318,7 +320,7 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: Some(OutgoingViewingKey([
                 111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240,
                 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
@@ -354,7 +356,7 @@ mod integration_tests {
                     .unwrap()
                     .as_slice(),
             )
-            .unwrap(),
+                .unwrap(),
             script: Script(
                 hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
             ),
@@ -376,15 +378,15 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
                 )
-                .unwrap()[..],
+                    .unwrap()[..],
             )
-            .unwrap(),
+                .unwrap(),
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
@@ -395,7 +397,7 @@ mod integration_tests {
                 241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
                 237, 141, 242, 117, 102, 204,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: None,
             memo: None,
         };
@@ -412,7 +414,7 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: Some(OutgoingViewingKey([
                 111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240,
                 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
@@ -448,7 +450,7 @@ mod integration_tests {
                     .unwrap()
                     .as_slice(),
             )
-            .unwrap(),
+                .unwrap(),
             script: Script(
                 hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
             ),
@@ -463,7 +465,7 @@ mod integration_tests {
                     .unwrap()
                     .as_slice(),
             )
-            .unwrap(),
+                .unwrap(),
             script: Script(
                 hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
             ),
@@ -518,15 +520,15 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
                 )
-                .unwrap()[..],
+                    .unwrap()[..],
             )
-            .unwrap(),
+                .unwrap(),
             rseed: Rseed::AfterZip212([0u8; 32]),
         };
 
@@ -537,15 +539,15 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             value: Amount::from_u64(50000).unwrap(),
             witness: IncrementalWitness::read(
                 &hex::decode(
                     "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
                 )
-                .unwrap()[..],
+                    .unwrap()[..],
             )
-            .unwrap(),
+                .unwrap(),
             rseed: Rseed::AfterZip212([0xFF; 32]),
         };
 
@@ -556,7 +558,7 @@ mod integration_tests {
                 241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
                 237, 141, 242, 117, 102, 204,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: None,
             memo: None,
         };
@@ -573,7 +575,7 @@ mod integration_tests {
                 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18,
                 208, 102, 86, 114, 110, 162, 118, 103,
             ])
-            .unwrap(),
+                .unwrap(),
             ovk: Some(OutgoingViewingKey([
                 111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240,
                 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
@@ -597,7 +599,7 @@ mod integration_tests {
 
         assert!(r.is_ok());
 
-        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -624,7 +626,7 @@ mod integration_tests {
             let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
             assert!(r.is_ok());
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
+        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );

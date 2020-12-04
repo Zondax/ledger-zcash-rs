@@ -19,33 +19,36 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
-use ledger_zondax_generic::{
-    map_apdu_error_description, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
-};
-use std::path::Path;
-use std::str;
-use zx_bip44::BIP44Path;
-
 extern crate hex;
 
+use std::path::Path;
+use std::str;
+
 use group::GroupEncoding;
-use zcash_hsmbuilder::txbuilder_ledger::TransactionMetadata;
-use zcash_hsmbuilder::{
-    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
-    TransparentOutputBuilderInfo,
+use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
+use ledger_zondax_generic::{
+    AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, map_apdu_error_description, Version,
 };
 use zcash_primitives::keys::*;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
-use zcash_primitives::primitives::Rseed;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
+use zcash_primitives::primitives::Rseed;
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 use zcash_primitives::transaction::Transaction;
+use zx_bip44::BIP44Path;
+
+use zcash_hsmbuilder::{
+    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
+    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
+    TransparentOutputBuilderInfo,
+};
+use zcash_hsmbuilder::txbuilder_ledger::TransactionMetadata;
+
+
 //use zcash_primitives::transaction::Transaction;
 
 ///Data needed to handle transparent input for sapling transaction
@@ -879,7 +882,7 @@ impl ZcashApp {
             return Err(r.err().unwrap());
         }
 
-        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -919,7 +922,7 @@ impl ZcashApp {
                 return Err(LedgerAppError::Crypto);
             }
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
+        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );

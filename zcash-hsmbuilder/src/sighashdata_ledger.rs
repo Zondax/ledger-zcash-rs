@@ -2,7 +2,6 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
-
 use zcash_primitives::transaction::TransactionData;
 
 const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";
@@ -153,10 +152,10 @@ fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
     let mut data = Vec::with_capacity(
         tx.joinsplits.len()
             * if tx.version < SAPLING_TX_VERSION {
-                1802 // JSDescription with PHGR13 proof
-            } else {
-                1698 // JSDescription with Groth16 proof
-            },
+            1802 // JSDescription with PHGR13 proof
+        } else {
+            1698 // JSDescription with Groth16 proof
+        },
     );
     for js in &tx.joinsplits {
         js.write(&mut data).unwrap();
