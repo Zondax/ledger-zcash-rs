@@ -354,13 +354,7 @@ impl ZcashBuilder {
 
     pub fn build(&mut self, prover: &mut LocalTxProver) -> Result<Vec<u8>, Error> {
         let r = self.builder.build(self.branch, prover);
-        match r.is_ok() {
-            true => {
-                let tx_ledger_data = r.unwrap();
-                tx_ledger_data.to_hsm_bytes()
-            }
-            false => Err(r.err().unwrap()),
-        }
+        r.map( |v| v.to_hsm_bytes())?
     }
 
     pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {
