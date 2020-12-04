@@ -19,24 +19,17 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
+extern crate hex;
+
+use std::path::Path;
+use std::str;
+
+use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCodes, APDUTransport};
 use ledger_zondax_generic::{
     map_apdu_error_description, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
-use std::path::Path;
-use std::str;
-use zx_bip44::BIP44Path;
-
-extern crate hex;
-
-use group::GroupEncoding;
-use zcash_hsmbuilder::txbuilder_ledger::TransactionMetadata;
-use zcash_hsmbuilder::{
-    LedgerInitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
-    TransparentOutputBuilderInfo,
-};
-use zcash_primitives::keys::*;
+use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::merkle_tree::IncrementalWitness;
 use zcash_primitives::note_encryption::Memo;
@@ -46,11 +39,19 @@ use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 use zcash_primitives::transaction::Transaction;
+use zx_bip44::BIP44Path;
+
+use zcash_hsmbuilder::txbuilder::TransactionMetadata;
+use zcash_hsmbuilder::{
+    InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo, TinData,
+    ToutData, TransactionSignatures, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+};
+
 //use zcash_primitives::transaction::Transaction;
 
 ///Data needed to handle transparent input for sapling transaction
 ///Contains information needed for both ledger and builder
-pub struct LedgerDataTransparentInput {
+pub struct DataTransparentInput {
     ///BIP44 path for transparent input key derivation
     pub path: BIP44Path,
     ///Public key belonging to the secret key (of the BIP44 path)
@@ -63,7 +64,7 @@ pub struct LedgerDataTransparentInput {
     pub value: Amount,
 }
 
-impl LedgerDataTransparentInput {
+impl DataTransparentInput {
     ///Takes the fields needed to send to the ledger
     pub fn to_init_data(&self) -> TinData {
         TinData {
@@ -85,14 +86,14 @@ impl LedgerDataTransparentInput {
 }
 
 ///Data needed to handle transparent output for sapling transaction
-pub struct LedgerDataTransparentOutput {
+pub struct DataTransparentOutput {
     ///The transparent output value
     pub value: Amount,
     ///The transparent output script
     pub script_pubkey: Script,
 }
 
-impl LedgerDataTransparentOutput {
+impl DataTransparentOutput {
     ///Decouples this struct to send to ledger
     pub fn to_init_data(&self) -> ToutData {
         ToutData {
@@ -111,7 +112,7 @@ impl LedgerDataTransparentOutput {
 }
 
 ///Data needed to handle shielded spend for sapling transaction
-pub struct LedgerDataShieldedSpend {
+pub struct DataShieldedSpend {
     ///ZIP32 path (last non-constant value)
     pub path: u32,
     ///Address of input spend note
@@ -125,7 +126,7 @@ pub struct LedgerDataShieldedSpend {
     pub rseed: Rseed,
 }
 
-impl LedgerDataShieldedSpend {
+impl DataShieldedSpend {
     ///Take the fields needed to send to ledger
     pub fn to_init_data(&self) -> ShieldedSpendData {
         ShieldedSpendData {
@@ -153,7 +154,7 @@ impl LedgerDataShieldedSpend {
 }
 
 ///Data needed to handle shielded output for sapling transaction
-pub struct LedgerDataShieldedOutput {
+pub struct DataShieldedOutput {
     ///address of shielded output
     pub address: PaymentAddress,
     ///value send to that address
@@ -164,14 +165,14 @@ pub struct LedgerDataShieldedOutput {
     pub memo: Option<Memo>,
 }
 
-impl LedgerDataShieldedOutput {
+impl DataShieldedOutput {
     ///Constructs the fields needed to send to ledger
     ///Ledger only checks memo-type, not the content
     pub fn to_init_data(&self) -> ShieldedOutputData {
         ShieldedOutputData {
             address: self.address.clone(),
             value: self.value,
-            memotype: if self.memo.is_none() {
+            memo_type: if self.memo.is_none() {
                 0xf6
             } else {
                 self.memo.clone().unwrap().as_bytes()[0]
@@ -194,24 +195,24 @@ impl LedgerDataShieldedOutput {
 }
 
 ///Data needed for sapling transaction
-pub struct LedgerDataInput {
+pub struct DataInput {
     ///transaction fee.
     /// Note: Ledger only supports fees of 10000 or 1000
     /// Note: Ledger only supports vectors up to length 5 at the moment for all below vectors
     pub txfee: u64,
     ///A vector of transparent inputs
-    pub vec_tin: Vec<LedgerDataTransparentInput>,
+    pub vec_tin: Vec<DataTransparentInput>,
     ///A vector of transparent outputs
-    pub vec_tout: Vec<LedgerDataTransparentOutput>,
+    pub vec_tout: Vec<DataTransparentOutput>,
     ///A vector of shielded spends
-    pub vec_sspend: Vec<LedgerDataShieldedSpend>,
+    pub vec_sspend: Vec<DataShieldedSpend>,
     ///A vector of shielded outputs
-    pub vec_soutput: Vec<LedgerDataShieldedOutput>,
+    pub vec_soutput: Vec<DataShieldedOutput>,
 }
 
-impl LedgerDataInput {
+impl DataInput {
     ///Prepares the data to send to the ledger
-    pub fn to_inittx_data(&self) -> LedgerInitData {
+    pub fn to_inittx_data(&self) -> InitData {
         let mut t_in = Vec::with_capacity(self.vec_tin.len() * 54);
         for info in self.vec_tin.iter() {
             t_in.push(info.to_init_data());
@@ -232,7 +233,7 @@ impl LedgerDataInput {
             s_output.push(info.to_init_data());
         }
 
-        LedgerInitData {
+        InitData {
             t_in,
             t_out,
             s_spend,
@@ -868,9 +869,9 @@ impl ZcashApp {
     ///Does a complete transaction in the ledger
     pub async fn do_transaction(
         &self,
-        input: &LedgerDataInput,
+        input: &DataInput,
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
-        let init_blob = input.to_inittx_data().to_ledger_bytes().unwrap();
+        let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
 
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&init_blob));
@@ -879,7 +880,7 @@ impl ZcashApp {
             return Err(r.err().unwrap());
         }
 
-        let mut builder = zcash_hsmbuilder::ZcashBuilderLedger::new(input.txfee);
+        let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
             let r = builder.add_transparent_input(info.to_builder_data());
@@ -919,9 +920,9 @@ impl ZcashApp {
                 return Err(LedgerAppError::Crypto);
             }
         }
-        let mut prover = zcash_hsmbuilder::txprover_ledger::LocalTxProverLedger::new(
-            Path::new("../zcash-hsmbuilder/src/sapling-spend.params"),
-            Path::new("../zcash-hsmbuilder/src/sapling-output.params"),
+        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
+            Path::new("../params/sapling-spend.params"),
+            Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
         let r = builder.build(&mut prover);

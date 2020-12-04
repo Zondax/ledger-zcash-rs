@@ -2,7 +2,6 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
-
 use zcash_primitives::transaction::TransactionData;
 
 const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";

@@ -1,3 +1,5 @@
+use std::ops::{AddAssign, Neg};
+
 use bellman::{
     gadgets::multipack,
     groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
@@ -7,12 +9,9 @@ use bls12_381::Bls12;
 use ff::Field;
 use group::Curve;
 use group::GroupEncoding;
-use jubjub::*;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-use std::ops::{AddAssign, Neg};
-use zcash_primitives::consensus::*;
 use zcash_primitives::prover::TxProver;
 use zcash_primitives::{
     constants::{
@@ -51,17 +50,17 @@ fn compute_value_balance_ledger(value: Amount) -> Option<jubjub::ExtendedPoint> 
 }
 
 /// A context object for creating the Sapling components of a Zcash transaction.
-pub struct SaplingProvingContextLedger {
+pub struct SaplingProvingContext {
     bsk: jubjub::Fr,
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
     cv_sum: jubjub::ExtendedPoint,
 }
 
-impl SaplingProvingContextLedger {
+impl SaplingProvingContext {
     /// Construct a new context to be used with a single transaction.
 
     pub fn new() -> Self {
-        SaplingProvingContextLedger {
+        SaplingProvingContext {
             bsk: jubjub::Fr::zero(),
             cv_sum: jubjub::ExtendedPoint::identity(),
         }
@@ -295,7 +294,7 @@ impl SaplingProvingContextLedger {
     }
 }
 
-impl Default for SaplingProvingContextLedger {
+impl Default for SaplingProvingContext {
     fn default() -> Self {
         Self::new()
     }
