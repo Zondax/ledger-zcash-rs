@@ -7,7 +7,6 @@ use bls12_381::Bls12;
 use zcash_primitives::{
     merkle_tree::MerklePath,
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-    prover::TxProver,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
     transaction::components::{Amount, GROTH_PROOF_SIZE},
@@ -121,7 +120,7 @@ impl LocalTxProver {
     }
 }
 
-pub trait TxProverLedger {
+pub trait TxProver {
     /// Type for persisting any necessary context across multiple Sapling proofs.
     type SaplingProvingContext;
 
@@ -172,7 +171,7 @@ pub trait TxProverLedger {
     ) -> Result<Signature, ()>;
 }
 
-impl TxProverLedger for LocalTxProver {
+impl TxProver for LocalTxProver {
     type SaplingProvingContext = SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {

@@ -24,7 +24,7 @@ use zcash_primitives::{
 
 use crate::errors::Error;
 use crate::sighashdata::signature_hash_input_data;
-use crate::txprover::TxProverLedger;
+use crate::txprover::TxProver;
 use crate::HsmTxData;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
@@ -92,7 +92,7 @@ impl SaplingOutput {
         })
     }
 
-    pub fn build<P: TxProverLedger, R: RngCore + CryptoRng>(
+    pub fn build<P: TxProver, R: RngCore + CryptoRng>(
         self,
         prover: &P,
         ctx: &mut P::SaplingProvingContext,
@@ -338,7 +338,7 @@ fn transparent_script_data_fromtx(
     Ok(data)
 }
 
-fn spenddataledger_fromtx(
+fn spend_data_hms_fromtx(
     input: &[zcash_primitives::transaction::components::SpendDescription],
 ) -> Vec<SpendDescription> {
     let mut data = Vec::new();
@@ -349,7 +349,7 @@ fn spenddataledger_fromtx(
     data
 }
 
-fn outputdataledger_fromtx(
+fn output_data_hsm_fromtx(
     input: &[zcash_primitives::transaction::components::OutputDescription],
 ) -> Vec<OutputDescription> {
     let mut data = Vec::new();
@@ -616,7 +616,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     pub fn build(
         &mut self,
         consensus_branch_id: consensus::BranchId,
-        prover: &impl TxProverLedger,
+        prover: &impl TxProver,
     ) -> Result<HsmTxData, Error> {
         let mut localrng = OsRng;
 
@@ -659,7 +659,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Sapling spends and outputs
         //
 
-        //let mut ctx: <impl TxProver as LocalTxProverLedger>::SaplingProvingContextLedger = SaplingProvingContextLedger::new();
+        //let mut ctx: <impl TxProver as LocalTxProver>::SaplingProvingContext = SaplingProvingContext::new();
         let mut ctx = prover.new_sapling_proving_context();
 
         // Pad Sapling outputs
@@ -748,8 +748,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         let hash_input = signature_hash_input_data(&self.mtx, SIGHASH_ALL);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
-        let spenddata = spenddataledger_fromtx(&self.mtx.shielded_spends);
-        let outputdata = outputdataledger_fromtx(&self.mtx.shielded_outputs);
+        let spenddata = spend_data_hms_fromtx(&self.mtx.shielded_spends);
+        let outputdata = output_data_hsm_fromtx(&self.mtx.shielded_outputs);
 
         Ok(HsmTxData {
             t_script_data: trans_scripts,

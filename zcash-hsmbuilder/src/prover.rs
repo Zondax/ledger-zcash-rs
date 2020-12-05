@@ -26,7 +26,7 @@ use zcash_primitives::{
 };
 use zcash_proofs::circuit::sapling::{Output, Spend};
 
-fn compute_value_balance_ledger(value: Amount) -> Option<jubjub::ExtendedPoint> {
+fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is
     // the value)
     let abs = match i64::from(value).checked_abs() {
@@ -269,7 +269,7 @@ impl SaplingProvingContext {
         // against our derived bvk.
         {
             // Compute value balance
-            let value_balance = compute_value_balance_ledger(value_balance).ok_or(())?;
+            let value_balance = compute_value_balance_hsm(value_balance).ok_or(())?;
 
             // Subtract value_balance from cv_sum to get final bvk
             let final_bvk = self.cv_sum - value_balance;
