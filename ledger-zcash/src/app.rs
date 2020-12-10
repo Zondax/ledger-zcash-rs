@@ -424,16 +424,16 @@ impl ZcashApp {
         path: u32,
         index: &[u8; 11],
     ) -> Result<[u8; 220], LedgerAppError> {
-        let mut data = Vec::with_capacity(4);
-        data.write_u32::<LittleEndian>(path).unwrap();
+        let mut input_data = Vec::with_capacity(4);
+        input_data.write_u32::<LittleEndian>(path).unwrap();
 
-        data.extend_from_slice(&index[..]);
+        input_data.extend_from_slice(&index[..]);
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_GET_DIV_LIST,
             p1: 0x00,
             p2: 0x00,
-            data: data,
+            data: input_data,
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -465,17 +465,17 @@ impl ZcashApp {
         require_confirmation: bool,
     ) -> Result<AddressShielded, LedgerAppError> {
         let p1 = if require_confirmation { 1 } else { 0 };
-        let mut data = Vec::with_capacity(4);
-        data.write_u32::<LittleEndian>(path).unwrap();
+        let mut input_data = Vec::with_capacity(4);
+        input_data.write_u32::<LittleEndian>(path).unwrap();
 
-        data.extend_from_slice(&div[..]);
+        input_data.extend_from_slice(&div[..]);
 
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_GET_ADDR_SAPLING_DIV,
             p1,
             p2: 0x00,
-            data: data,
+            data: input_data,
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -554,15 +554,15 @@ impl ZcashApp {
 
     /// Retrieves a outgoing viewing key of a sapling key
     pub async fn get_ovk(&self, path: u32) -> Result<OutgoingViewingKey, LedgerAppError> {
-        let mut data = Vec::with_capacity(4);
-        data.write_u32::<LittleEndian>(path).unwrap();
+        let mut input_data = Vec::with_capacity(4);
+        input_data.write_u32::<LittleEndian>(path).unwrap();
 
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_GET_OVK,
             p1: 0x01,
             p2: 0x00,
-            data: data,
+            data: input_data,
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -589,15 +589,15 @@ impl ZcashApp {
 
     /// Retrieves a incoming viewing key of a sapling key
     pub async fn get_ivk(&self, path: u32) -> Result<jubjub::Fr, LedgerAppError> {
-        let mut data = Vec::with_capacity(4);
-        data.write_u32::<LittleEndian>(path).unwrap();
+        let mut input_data = Vec::with_capacity(4);
+        input_data.write_u32::<LittleEndian>(path).unwrap();
 
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_GET_IVK,
             p1: 0x01,
             p2: 0x00,
-            data: data,
+            data: input_data,
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
