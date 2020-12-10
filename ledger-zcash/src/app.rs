@@ -48,6 +48,8 @@ use zcash_hsmbuilder::{
     ToutData, TransactionSignatures, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
 };
 
+use sha2::{Digest, Sha256};
+
 //use zcash_primitives::transaction::Transaction;
 
 ///Data needed to handle transparent input for sapling transaction
@@ -647,8 +649,19 @@ impl ZcashApp {
 
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&response.data[..32]);
-        //check hash here?
-        Ok(hash)
+
+        let mut sha256 = Sha256::new();
+        sha256.update(data);
+        let h = sha256.finalize();
+
+        if h[..] != hash[..] {
+            Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Something went wrong in data transport"),
+            ))
+        } else {
+            Ok(hash)
+        }
     }
 
     ///Get the information needed from ledger to make a shielded spend
@@ -867,8 +880,19 @@ impl ZcashApp {
 
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&response.data[..32]);
-        //check hash here?
-        Ok(hash)
+
+        let mut sha256 = Sha256::new();
+        sha256.update(data);
+        let h = sha256.finalize();
+
+        if h[..] != hash[..] {
+            Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Something went wrong in data transport"),
+            ))
+        } else {
+            Ok(hash)
+        }
     }
 
     ///Does a complete transaction in the ledger
