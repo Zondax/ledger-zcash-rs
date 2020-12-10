@@ -40,7 +40,7 @@ mod integration_tests {
     use ledger_zcash::{APDUTransport, ZcashApp, PK_LEN_SAPLING, PK_LEN_SECP261K1, *};
 
     fn init_logging() {
-        let _ = env_logger::from_env(Env::default().default_filter_or("info"))
+        let _ = env_logger::Builder::from_env(Env::default().default_filter_or("info"))
             .is_test(true)
             .try_init();
     }
@@ -66,6 +66,48 @@ mod integration_tests {
         println!("locked {}", resp.locked);
 
         assert_eq!(resp.major, 2);
+    }
+
+    #[tokio::test]
+    async fn get_key_ivk() {
+        init_logging();
+
+        let transport = APDUTransport {
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
+        };
+        let app = ZcashApp::new(transport);
+
+        let path = 1000;
+
+        let resp = app.get_ivk(path).await.unwrap();
+
+        let ivk = hex::encode(&resp.to_bytes());
+
+        assert_eq!(
+            ivk,
+            "6dfadf175921e6fbfa093c8f7c704a0bdb07328474f56c833dfcfa5301082d03"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_key_ovk() {
+        init_logging();
+
+        let transport = APDUTransport {
+            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
+        };
+        let app = ZcashApp::new(transport);
+
+        let path = 1000;
+
+        let resp = app.get_ovk(path).await.unwrap();
+
+        let ovk = hex::encode(&resp.0);
+
+        assert_eq!(
+            ovk,
+            "6fc01eaa665e03a53c1e033ed0d77b670cf075ede4ada769997a2ed2ec225fca"
+        );
     }
 
     #[tokio::test]
@@ -104,8 +146,8 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
-        let resp = app.get_address_shielded(&path, false).await.unwrap();
+        let path = 1000;
+        let resp = app.get_address_shielded(path, false).await.unwrap();
 
         assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
@@ -159,8 +201,8 @@ mod integration_tests {
         };
         let app = ZcashApp::new(transport);
 
-        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
-        let resp = app.get_address_shielded(&path, true).await.unwrap();
+        let path = 1000;
+        let resp = app.get_address_shielded(path, true).await.unwrap();
 
         assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
@@ -209,9 +251,9 @@ mod integration_tests {
         let app = ZcashApp::new(transport);
 
         let startindex: [u8; 11] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
+        let path = 1000;
 
-        let r = app.get_div_list(&path, &startindex).await;
+        let r = app.get_div_list(path, &startindex).await;
         assert!(r.is_ok());
         let bytes = r.unwrap();
         assert_eq!(
@@ -230,9 +272,9 @@ mod integration_tests {
         let app = ZcashApp::new(transport);
 
         let div: [u8; 11] = [198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220];
-        let path = BIP44Path::from_string("m/44'/133'/5'/0/1000").unwrap();
+        let path = 1000;
 
-        let resp = app.get_address_shielded_with_div(&path, &div).await;
+        let resp = app.get_address_shielded_with_div(path, &div, true).await;
         assert!(resp.is_ok());
         let resp = resp.unwrap();
         let pkhex = hex::encode(&resp.public_key.to_bytes());
@@ -308,7 +350,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let fee = 10000;
+        let fee = 1000;
 
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = spend1.value + spend2.value - output1.value - txfee;
