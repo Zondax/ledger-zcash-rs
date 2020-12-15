@@ -19,7 +19,7 @@
 
 extern crate hex;
 extern crate ledger_zcash;
-#[macro_use]
+
 extern crate matches;
 #[macro_use]
 extern crate serial_test;
@@ -218,27 +218,6 @@ mod integration_tests {
             resp.address,
             "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3"
         );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn sign_empty() {
-        init_logging();
-
-        let transport = APDUTransport {
-            transport_wrapper: Box::new(ledger::TransportNativeHID::new().unwrap()),
-        };
-        let app = ZcashApp::new(transport);
-
-        let path = BIP44Path::from_string("m/44'/133'/0'/0/5").unwrap();
-        let some_message0 = b"";
-
-        let response = app.sign_unshielded(&path, some_message0).await;
-        assert!(response.is_err());
-        assert!(matches!(
-            response.err().unwrap(),
-            ledger_zcash::LedgerAppError::InvalidEmptyMessage
-        ));
     }
 
     #[tokio::test]

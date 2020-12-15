@@ -257,7 +257,6 @@ const INS_GET_DIV_LIST: u8 = 0x09;
 
 const CLA: u8 = 0x85;
 const INS_GET_ADDR_SECP256K1: u8 = 0x01;
-const INS_SIGN_SECP256K1: u8 = 0x02;
 
 const INS_GET_ADDR_SAPLING: u8 = 0x11;
 const INS_GET_ADDR_SAPLING_DIV: u8 = 0x10;
@@ -294,8 +293,6 @@ pub struct AddressShielded {
     /// Address (exposed as SS58)
     pub address: String,
 }
-
-type SignatureUnshielded = [u8; 65];
 
 impl ZcashApp {
     /// Connect to the Ledger App
@@ -516,44 +513,6 @@ impl ZcashApp {
         Ok(address)
     }
 
-    /// Sign an unshielded transaction
-    pub async fn sign_unshielded(
-        &self,
-        path: &BIP44Path,
-        message: &[u8],
-    ) -> Result<SignatureUnshielded, LedgerAppError> {
-        let serialized_path = path.serialize();
-        let start_command = APDUCommand {
-            cla: self.cla(),
-            ins: INS_SIGN_SECP256K1,
-            p1: ChunkPayloadType::Init as u8,
-            p2: 0x00,
-            data: serialized_path,
-        };
-
-        log::info!("sign ->");
-        let response =
-            ledger_zondax_generic::send_chunks(&self.apdu_transport, &start_command, message)
-                .await?;
-        log::info!("sign OK");
-
-        if response.data.is_empty() && response.retcode == APDUErrorCodes::NoError as u16 {
-            return Err(LedgerAppError::NoSignature);
-        }
-
-        // Last response should contain the answer
-        if response.data.len() < 65 {
-            return Err(LedgerAppError::InvalidSignature);
-        }
-
-        log::info!("{}", hex::encode(&response.data[..]));
-
-        let mut sig: SignatureUnshielded = [0u8; 65];
-        sig.copy_from_slice(&response.data[..65]);
-
-        Ok(sig)
-    }
-
     /// Retrieves a outgoing viewing key of a sapling key
     pub async fn get_ovk(&self, path: u32) -> Result<OutgoingViewingKey, LedgerAppError> {
         let mut input_data = Vec::with_capacity(4);
@@ -630,13 +589,12 @@ impl ZcashApp {
 
     ///Initiates a transaction in the ledger
     pub async fn init_tx(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let start_command = APDUCommand {
             cla: self.cla(),
             ins: INS_INIT_TX,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response =
@@ -668,13 +626,12 @@ impl ZcashApp {
     pub async fn get_spendinfo(
         &self,
     ) -> Result<(ProofGenerationKey, jubjub::Fr, jubjub::Fr), LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_SPEND,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -741,13 +698,12 @@ impl ZcashApp {
 
     ///Get the information needed from ledger to make a shielded output
     pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, Rseed), LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_OUTPUT,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -788,13 +744,12 @@ impl ZcashApp {
 
     ///Get a transparent signature from the ledger
     pub async fn get_transparent_signature(&self) -> Result<secp256k1::Signature, LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_TRANSSIG,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -824,13 +779,12 @@ impl ZcashApp {
 
     ///Get a shielded spend signature from the ledger
     pub async fn get_spend_signature(&self) -> Result<Signature, LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_SPENDSIG,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -861,13 +815,12 @@ impl ZcashApp {
 
     ///Initiates a transaction in the ledger
     pub async fn checkandsign(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let start_command = APDUCommand {
             cla: self.cla(),
             ins: INS_CHECKANDSIGN,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response =
