@@ -50,6 +50,86 @@ use zcash_hsmbuilder::{
 
 use sha2::{Digest, Sha256};
 
+const INS_GET_IVK: u8 = 0xf0;
+const INS_GET_OVK: u8 = 0xf1;
+const INS_INIT_TX: u8 = 0xa0;
+const INS_EXTRACT_SPEND: u8 = 0xa1;
+const INS_EXTRACT_OUTPUT: u8 = 0xa2;
+const INS_CHECKANDSIGN: u8 = 0xa3;
+const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
+const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
+const INS_GET_DIV_LIST: u8 = 0x09;
+
+const CLA: u8 = 0x85;
+const INS_GET_ADDR_SECP256K1: u8 = 0x01;
+const INS_GET_ADDR_SAPLING: u8 = 0x11;
+const INS_GET_ADDR_SAPLING_DIV: u8 = 0x10;
+
+///Lenght of diversifier index
+const DIV_INDEX_SIZE: usize = 11;
+///Diversifier length
+const DIV_SIZE: usize = 11;
+///get div list returns 20 diversifiers
+const DIV_LIST_SIZE: usize = 220;
+
+///OVK size
+const OVK_SIZE: usize = 32;
+
+///IVK size
+const IVK_SIZE: usize = 32;
+
+///sha256 digest size
+const SHA256_DIGEST_SIZE: usize = 32;
+
+///AK size
+const AK_SIZE: usize = 32;
+
+///NSK size
+const NSK_SIZE: usize = 32;
+
+///ALPHA size
+const ALPHA_SIZE: usize = 32;
+
+///RCV size
+const RCV_SIZE: usize = 32;
+
+///Spenddata length: AK (32) + NSK (32) + Alpha(32) + RCV (32)
+const SPENDDATA_SIZE: usize = AK_SIZE + NSK_SIZE + ALPHA_SIZE + RCV_SIZE;
+
+///RCM size
+const RSEED_SIZE: usize = 32;
+
+///Spenddata length: RCV (32) + RCM (32) +
+const OUTPUTDATA_SIZE: usize = RCV_SIZE + RSEED_SIZE;
+
+/// Public Key Length (secp256k1)
+pub const PK_LEN_SECP261K1: usize = 33;
+
+/// Public Key Length (sapling)
+pub const PK_LEN_SAPLING: usize = 43;
+
+//T_IN input size: BIP44-path (20) + script (26) + value (8)
+const T_IN_INPUT_SIZE: usize = 54;
+
+//T_OUT input size: script (26) + value (8)
+const T_OUT_INPUT_SIZE: usize = 34;
+
+//S_SPEND input size: zip32-path (4) + address (43) + value (8)
+const S_SPEND_INPUT_SIZE: usize = 55;
+
+//S_SPEND input size: address (43) + value (8) + memotype (1) + ovk(32)
+const S_OUT_INPUT_SIZE: usize = 84;
+
+//Signature size for transparent and shielded signatures
+const SIG_SIZE: usize = 64;
+
+type PublicKeySecp256k1 = [u8; PK_LEN_SECP261K1];
+
+/// Ledger App
+pub struct ZcashApp {
+    apdu_transport: APDUTransport,
+}
+
 //use zcash_primitives::transaction::Transaction;
 
 ///Data needed to handle transparent input for sapling transaction
@@ -216,22 +296,22 @@ pub struct DataInput {
 impl DataInput {
     ///Prepares the data to send to the ledger
     pub fn to_inittx_data(&self) -> InitData {
-        let mut t_in = Vec::with_capacity(self.vec_tin.len() * 54);
+        let mut t_in = Vec::with_capacity(self.vec_tin.len() * T_IN_INPUT_SIZE);
         for info in self.vec_tin.iter() {
             t_in.push(info.to_init_data());
         }
 
-        let mut t_out = Vec::with_capacity(self.vec_tout.len() * 34);
+        let mut t_out = Vec::with_capacity(self.vec_tout.len() * T_OUT_INPUT_SIZE);
         for info in self.vec_tout.iter() {
             t_out.push(info.to_init_data());
         }
 
-        let mut s_spend = Vec::with_capacity(self.vec_sspend.len() * 55);
+        let mut s_spend = Vec::with_capacity(self.vec_sspend.len() * S_SPEND_INPUT_SIZE);
         for info in self.vec_sspend.iter() {
             s_spend.push(info.to_init_data());
         }
 
-        let mut s_output = Vec::with_capacity(self.vec_soutput.len() * 55);
+        let mut s_output = Vec::with_capacity(self.vec_soutput.len() * S_OUT_INPUT_SIZE);
         for info in self.vec_soutput.iter() {
             s_output.push(info.to_init_data());
         }
@@ -245,36 +325,6 @@ impl DataInput {
     }
 }
 
-const INS_GET_IVK: u8 = 0xf0;
-const INS_GET_OVK: u8 = 0xf1;
-const INS_INIT_TX: u8 = 0xa0;
-const INS_EXTRACT_SPEND: u8 = 0xa1;
-const INS_EXTRACT_OUTPUT: u8 = 0xa2;
-const INS_CHECKANDSIGN: u8 = 0xa3;
-const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
-const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
-const INS_GET_DIV_LIST: u8 = 0x09;
-
-const CLA: u8 = 0x85;
-const INS_GET_ADDR_SECP256K1: u8 = 0x01;
-const INS_SIGN_SECP256K1: u8 = 0x02;
-
-const INS_GET_ADDR_SAPLING: u8 = 0x11;
-const INS_GET_ADDR_SAPLING_DIV: u8 = 0x10;
-//const INS_SIGN_SAPLING: u8 = 0x12;
-
-/// Public Key Length (secp256k1)
-pub const PK_LEN_SECP261K1: usize = 33;
-
-/// Public Key Length (sapling)
-pub const PK_LEN_SAPLING: usize = 43;
-
-/// Ledger App
-pub struct ZcashApp {
-    apdu_transport: APDUTransport,
-}
-
-type PublicKeySecp256k1 = [u8; PK_LEN_SECP261K1];
 //type PublicKeySapling = [u8; PK_LEN_SAPLING];
 
 /// Zcash unshielded address
@@ -294,8 +344,6 @@ pub struct AddressShielded {
     /// Address (exposed as SS58)
     pub address: String,
 }
-
-type SignatureUnshielded = [u8; 65];
 
 impl ZcashApp {
     /// Connect to the Ledger App
@@ -424,8 +472,8 @@ impl ZcashApp {
     pub async fn get_div_list(
         &self,
         path: u32,
-        index: &[u8; 11],
-    ) -> Result<[u8; 220], LedgerAppError> {
+        index: &[u8; DIV_INDEX_SIZE],
+    ) -> Result<[u8; DIV_LIST_SIZE], LedgerAppError> {
         let mut input_data = Vec::with_capacity(4);
         input_data.write_u32::<LittleEndian>(path).unwrap();
 
@@ -447,14 +495,14 @@ impl ZcashApp {
         }
 
         // Last response should contain the answer
-        if response.data.len() < 220 {
+        if response.data.len() < DIV_LIST_SIZE {
             return Err(LedgerAppError::InvalidSignature);
         }
 
         log::info!("{}", hex::encode(&response.data[..]));
 
-        let mut list = [0u8; 220];
-        list.copy_from_slice(&response.data[..220]);
+        let mut list = [0u8; DIV_LIST_SIZE];
+        list.copy_from_slice(&response.data[..DIV_LIST_SIZE]);
 
         Ok(list)
     }
@@ -463,7 +511,7 @@ impl ZcashApp {
     pub async fn get_address_shielded_with_div(
         &self,
         path: u32,
-        div: &[u8; 11],
+        div: &[u8; DIV_SIZE],
         require_confirmation: bool,
     ) -> Result<AddressShielded, LedgerAppError> {
         let p1 = if require_confirmation { 1 } else { 0 };
@@ -489,14 +537,14 @@ impl ZcashApp {
         }
 
         // Last response should contain the answer
-        if response.data.len() < 43 {
+        if response.data.len() < PK_LEN_SAPLING {
             return Err(LedgerAppError::InvalidSignature);
         }
 
         log::info!("{}", hex::encode(&response.data[..]));
 
-        let mut addrb = [0u8; 43];
-        addrb.copy_from_slice(&response.data[..43]);
+        let mut addrb = [0u8; PK_LEN_SAPLING];
+        addrb.copy_from_slice(&response.data[..PK_LEN_SAPLING]);
 
         let addr = PaymentAddress::from_bytes(&addrb);
 
@@ -514,44 +562,6 @@ impl ZcashApp {
             .to_owned();
 
         Ok(address)
-    }
-
-    /// Sign an unshielded transaction
-    pub async fn sign_unshielded(
-        &self,
-        path: &BIP44Path,
-        message: &[u8],
-    ) -> Result<SignatureUnshielded, LedgerAppError> {
-        let serialized_path = path.serialize();
-        let start_command = APDUCommand {
-            cla: self.cla(),
-            ins: INS_SIGN_SECP256K1,
-            p1: ChunkPayloadType::Init as u8,
-            p2: 0x00,
-            data: serialized_path,
-        };
-
-        log::info!("sign ->");
-        let response =
-            ledger_zondax_generic::send_chunks(&self.apdu_transport, &start_command, message)
-                .await?;
-        log::info!("sign OK");
-
-        if response.data.is_empty() && response.retcode == APDUErrorCodes::NoError as u16 {
-            return Err(LedgerAppError::NoSignature);
-        }
-
-        // Last response should contain the answer
-        if response.data.len() < 65 {
-            return Err(LedgerAppError::InvalidSignature);
-        }
-
-        log::info!("{}", hex::encode(&response.data[..]));
-
-        let mut sig: SignatureUnshielded = [0u8; 65];
-        sig.copy_from_slice(&response.data[..65]);
-
-        Ok(sig)
     }
 
     /// Retrieves a outgoing viewing key of a sapling key
@@ -575,14 +585,14 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 32 {
+        if response.data.len() < OVK_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
         log::info!("Received response {}", response.data.len());
 
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(&response.data[0..32]);
+        let mut bytes = [0u8; OVK_SIZE];
+        bytes.copy_from_slice(&response.data[0..OVK_SIZE]);
 
         let ovk = OutgoingViewingKey(bytes);
 
@@ -610,14 +620,14 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 32 {
+        if response.data.len() < IVK_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
         log::info!("Received response {}", response.data.len());
 
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(&response.data[0..32]);
+        let mut bytes = [0u8; IVK_SIZE];
+        bytes.copy_from_slice(&response.data[0..IVK_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&bytes);
 
@@ -629,14 +639,13 @@ impl ZcashApp {
     }
 
     ///Initiates a transaction in the ledger
-    pub async fn init_tx(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
+    pub async fn init_tx(&self, data: &[u8]) -> Result<[u8; SHA256_DIGEST_SIZE], LedgerAppError> {
         let start_command = APDUCommand {
             cla: self.cla(),
             ins: INS_INIT_TX,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response =
@@ -647,8 +656,8 @@ impl ZcashApp {
             return Err(LedgerAppError::NoSignature);
         }
 
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&response.data[..32]);
+        let mut hash = [0u8; SHA256_DIGEST_SIZE];
+        hash.copy_from_slice(&response.data[..SHA256_DIGEST_SIZE]);
 
         let mut sha256 = Sha256::new();
         sha256.update(data);
@@ -668,13 +677,12 @@ impl ZcashApp {
     pub async fn get_spendinfo(
         &self,
     ) -> Result<(ProofGenerationKey, jubjub::Fr, jubjub::Fr), LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_SPEND,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -685,7 +693,7 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 64 + 32 + 32 {
+        if response.data.len() < SPENDDATA_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
@@ -693,10 +701,10 @@ impl ZcashApp {
 
         let bytes = response.data;
 
-        let mut akb = [0u8; 32];
-        akb.copy_from_slice(&bytes[0..32]);
-        let mut nskb = [0u8; 32];
-        nskb.copy_from_slice(&bytes[32..64]);
+        let mut akb = [0u8; AK_SIZE];
+        akb.copy_from_slice(&bytes[0..AK_SIZE]);
+        let mut nskb = [0u8; NSK_SIZE];
+        nskb.copy_from_slice(&bytes[AK_SIZE..AK_SIZE + NSK_SIZE]);
 
         let ak = jubjub::SubgroupPoint::from_bytes(&akb);
         let nsk = jubjub::Fr::from_bytes(&nskb);
@@ -712,8 +720,8 @@ impl ZcashApp {
             nsk: nsk.unwrap(),
         };
 
-        let mut rcvb = [0u8; 32];
-        rcvb.copy_from_slice(&bytes[64..96]);
+        let mut rcvb = [0u8; RCV_SIZE];
+        rcvb.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE..AK_SIZE + NSK_SIZE + RCV_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&rcvb);
         if f.is_none().into() {
@@ -724,8 +732,8 @@ impl ZcashApp {
         }
         let rcv = f.unwrap();
 
-        let mut alphab = [0u8; 32];
-        alphab.copy_from_slice(&bytes[96..128]);
+        let mut alphab = [0u8; ALPHA_SIZE];
+        alphab.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE + RCV_SIZE..SPENDDATA_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&alphab);
         if f.is_none().into() {
@@ -741,13 +749,12 @@ impl ZcashApp {
 
     ///Get the information needed from ledger to make a shielded output
     pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, Rseed), LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_OUTPUT,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -758,7 +765,7 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 64 {
+        if response.data.len() < OUTPUTDATA_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
@@ -766,8 +773,8 @@ impl ZcashApp {
 
         let bytes = response.data;
 
-        let mut rcvb = [0u8; 32];
-        rcvb.copy_from_slice(&bytes[0..32]);
+        let mut rcvb = [0u8; RCV_SIZE];
+        rcvb.copy_from_slice(&bytes[0..RCV_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&rcvb);
         if f.is_none().into() {
@@ -778,8 +785,8 @@ impl ZcashApp {
         }
         let rcv = f.unwrap();
 
-        let mut rseedb = [0u8; 32];
-        rseedb.copy_from_slice(&bytes[32..64]);
+        let mut rseedb = [0u8; RSEED_SIZE];
+        rseedb.copy_from_slice(&bytes[RCV_SIZE..OUTPUTDATA_SIZE]);
 
         let rseed = Rseed::AfterZip212(rseedb);
 
@@ -788,13 +795,12 @@ impl ZcashApp {
 
     ///Get a transparent signature from the ledger
     pub async fn get_transparent_signature(&self) -> Result<secp256k1::Signature, LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_TRANSSIG,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -805,13 +811,13 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 64 {
+        if response.data.len() < SIG_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
         log::info!("Received response {}", response.data.len());
 
-        let sig = secp256k1::Signature::from_compact(&response.data[0..64]);
+        let sig = secp256k1::Signature::from_compact(&response.data[0..SIG_SIZE]);
         if sig.is_err() {
             Err(LedgerAppError::AppSpecific(
                 1,
@@ -824,13 +830,12 @@ impl ZcashApp {
 
     ///Get a shielded spend signature from the ledger
     pub async fn get_spend_signature(&self) -> Result<Signature, LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_SPENDSIG,
             p1: 0x00,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response = self.apdu_transport.exchange(&command).await?;
@@ -841,13 +846,13 @@ impl ZcashApp {
             ));
         }
 
-        if response.data.len() < 64 {
+        if response.data.len() < SIG_SIZE {
             return Err(LedgerAppError::InvalidPK);
         }
 
         log::info!("Received response {}", response.data.len());
 
-        let sig = Signature::read(&response.data[..]);
+        let sig = Signature::read(&response.data[..SIG_SIZE]);
 
         if sig.is_err() {
             Err(LedgerAppError::AppSpecific(
@@ -861,13 +866,12 @@ impl ZcashApp {
 
     ///Initiates a transaction in the ledger
     pub async fn checkandsign(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError> {
-        let dummy_path = BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap();
         let start_command = APDUCommand {
             cla: self.cla(),
             ins: INS_CHECKANDSIGN,
             p1: ChunkPayloadType::Init as u8,
             p2: 0x00,
-            data: dummy_path.serialize(),
+            data: vec![],
         };
 
         let response =
@@ -878,8 +882,8 @@ impl ZcashApp {
             return Err(LedgerAppError::NoSignature);
         }
 
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&response.data[..32]);
+        let mut hash = [0u8; SHA256_DIGEST_SIZE];
+        hash.copy_from_slice(&response.data[..SHA256_DIGEST_SIZE]);
 
         let mut sha256 = Sha256::new();
         sha256.update(data);
