@@ -249,48 +249,6 @@ impl ZcashBuilder {
         }
     }
 
-    pub fn get_public_key(&mut self) -> Result<Vec<u8>, Error> {
-        if self.secret_key == None || self.public_key == None {
-            return Err(Error::BuilderNoKeys);
-        }
-        let mut v: Vec<u8> = Vec::with_capacity(32);
-        v.extend_from_slice(&self.public_key.unwrap());
-        Ok(v)
-    }
-
-    pub fn keygen(&mut self) {
-        let mut rng = OsRng;
-        let mut bytes = [0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        let f = jubjub::Fr::from_bytes_wide(&bytes);
-        let p = AffinePoint::generator() * f;
-        self.secret_key = Some(f.to_bytes());
-        self.public_key = Some(p.to_bytes());
-    }
-
-    pub fn set_session_key(&mut self, input: &[u8]) -> Result<(), Error> {
-        if self.secret_key == None || self.public_key == None {
-            return Err(Error::BuilderNoKeys);
-        }
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(input);
-        let pubclient = AffinePoint::from_bytes(bytes).unwrap().mul_by_cofactor();
-        let f = jubjub::Fr::from_bytes(&self.secret_key.unwrap()).unwrap();
-        let session_jubjub = pubclient * f;
-
-        pub const PRF_SESSION_PERSONALIZATION: &[u8; 16] = b"Zcash_SessionKey";
-        let h = Blake2bParams::new()
-            .hash_length(32)
-            .personal(PRF_SESSION_PERSONALIZATION)
-            .hash(&session_jubjub.to_bytes());
-
-        let mut session_key = [0u8; 32];
-        session_key.copy_from_slice(&h.as_bytes());
-        assert_ne!(session_key, [0u8; 32]);
-        self.session_key = Some(session_key);
-        Ok(())
-    }
-
     pub fn add_transparent_input(
         &mut self,
         info: TransparentInputBuilderInfo,
@@ -360,12 +318,8 @@ impl ZcashBuilder {
     }
 
     pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {
-        let r = self
-            .builder
-            .add_signatures_transparant(input.transparent_sigs, self.branch);
-        if r.is_err() {
-            return r;
-        }
+        self.builder
+            .add_signatures_transparant(input.transparent_sigs, self.branch)?;
         self.builder.add_signatures_spend(input.spend_sigs)
     }
 

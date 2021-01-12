@@ -255,11 +255,7 @@ impl DataShieldedOutput {
         ShieldedOutputData {
             address: self.address.clone(),
             value: self.value,
-            memo_type: if self.memo.is_none() {
-                0xf6
-            } else {
-                self.memo.clone().unwrap().as_bytes()[0]
-            },
+            memo_type: self.memo.as_ref().map(|v| v.as_bytes()[0]).unwrap_or(0xf6),
             ovk: self.ovk,
         }
     }
@@ -424,7 +420,9 @@ impl ZcashApp {
     ) -> Result<AddressShielded, LedgerAppError> {
         let p1 = if require_confirmation { 1 } else { 0 };
         let mut path_data = Vec::with_capacity(4);
-        path_data.write_u32::<LittleEndian>(path).unwrap();
+        path_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: self.cla(),
@@ -451,13 +449,10 @@ impl ZcashApp {
         let mut bytes = [0u8; PK_LEN_SAPLING];
         bytes.copy_from_slice(&response.data[..PK_LEN_SAPLING]);
 
-        let addr = PaymentAddress::from_bytes(&bytes);
-        if addr.is_none() {
-            return Err(LedgerAppError::Crypto);
-        }
+        let addr = PaymentAddress::from_bytes(&bytes).ok_or(LedgerAppError::Crypto)?;
 
         let mut address = AddressShielded {
-            public_key: addr.unwrap(),
+            public_key: addr,
             address: "".to_string(),
         };
 
@@ -475,7 +470,9 @@ impl ZcashApp {
         index: &[u8; DIV_INDEX_SIZE],
     ) -> Result<[u8; DIV_LIST_SIZE], LedgerAppError> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).unwrap();
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         input_data.extend_from_slice(&index[..]);
         let command = APDUCommand {
@@ -516,7 +513,9 @@ impl ZcashApp {
     ) -> Result<AddressShielded, LedgerAppError> {
         let p1 = if require_confirmation { 1 } else { 0 };
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).unwrap();
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         input_data.extend_from_slice(&div[..]);
 
@@ -545,15 +544,10 @@ impl ZcashApp {
 
         let mut addrb = [0u8; PK_LEN_SAPLING];
         addrb.copy_from_slice(&response.data[..PK_LEN_SAPLING]);
-
-        let addr = PaymentAddress::from_bytes(&addrb);
-
-        if addr.is_none() {
-            return Err(LedgerAppError::Crypto);
-        }
+        let addr = PaymentAddress::from_bytes(&addrb).ok_or(LedgerAppError::Crypto)?;
 
         let mut address = AddressShielded {
-            public_key: addr.unwrap(),
+            public_key: addr,
             address: "".to_string(),
         };
 
@@ -567,7 +561,9 @@ impl ZcashApp {
     /// Retrieves a outgoing viewing key of a sapling key
     pub async fn get_ovk(&self, path: u32) -> Result<OutgoingViewingKey, LedgerAppError> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).unwrap();
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: self.cla(),
@@ -602,7 +598,9 @@ impl ZcashApp {
     /// Retrieves a incoming viewing key of a sapling key
     pub async fn get_ivk(&self, path: u32) -> Result<jubjub::Fr, LedgerAppError> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).unwrap();
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: self.cla(),
@@ -629,12 +627,11 @@ impl ZcashApp {
         let mut bytes = [0u8; IVK_SIZE];
         bytes.copy_from_slice(&response.data[0..IVK_SIZE]);
 
-        let f = jubjub::Fr::from_bytes(&bytes);
-
-        if f.is_some().into() {
-            Ok(f.unwrap())
+        let y = jubjub::Fr::from_bytes(&bytes);
+        if y.is_some().into() {
+            Ok(y.unwrap())
         } else {
-            Err(LedgerAppError::Crypto)
+            Err(LedgerAppError::InvalidPK)
         }
     }
 
@@ -817,15 +814,8 @@ impl ZcashApp {
 
         log::info!("Received response {}", response.data.len());
 
-        let sig = secp256k1::Signature::from_compact(&response.data[0..SIG_SIZE]);
-        if sig.is_err() {
-            Err(LedgerAppError::AppSpecific(
-                1,
-                String::from("invalid signature"),
-            ))
-        } else {
-            Ok(sig.unwrap())
-        }
+        secp256k1::Signature::from_compact(&response.data[0..SIG_SIZE])
+            .map_err(|_| LedgerAppError::InvalidSignature)
     }
 
     ///Get a shielded spend signature from the ledger
@@ -847,21 +837,12 @@ impl ZcashApp {
         }
 
         if response.data.len() < SIG_SIZE {
-            return Err(LedgerAppError::InvalidPK);
+            return Err(LedgerAppError::InvalidSignature);
         }
 
         log::info!("Received response {}", response.data.len());
 
-        let sig = Signature::read(&response.data[..SIG_SIZE]);
-
-        if sig.is_err() {
-            Err(LedgerAppError::AppSpecific(
-                1,
-                String::from("invalid signature"),
-            ))
-        } else {
-            Ok(sig.unwrap())
-        }
+        Signature::read(&response.data[..SIG_SIZE]).map_err(|_| LedgerAppError::InvalidSignature)
     }
 
     ///Initiates a transaction in the ledger
@@ -904,71 +885,54 @@ impl ZcashApp {
         &self,
         input: &DataInput,
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError> {
-        let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
+        let init_blob = input
+            .to_inittx_data()
+            .to_hsm_bytes()
+            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&init_blob));
-        let r = self.init_tx(&init_blob).await;
-        if r.is_err() {
-            return Err(r.err().unwrap());
-        }
+        self.init_tx(&init_blob).await?;
 
         let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
         for info in input.vec_tin.iter() {
-            let r = builder.add_transparent_input(info.to_builder_data());
-            if r.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
+            builder
+                .add_transparent_input(info.to_builder_data())
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
         }
 
         for info in input.vec_tout.iter() {
-            let r = builder.add_transparent_output(info.to_builder_data());
-            if r.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
+            builder
+                .add_transparent_output(info.to_builder_data())
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
         }
 
         for info in input.vec_sspend.iter() {
             log::info!("getting spend data from ledger");
-            let req = self.get_spendinfo().await;
-            if req.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
-            let spendinfo = req.unwrap();
-            let r = builder.add_sapling_spend(info.to_builder_data(spendinfo));
-            if r.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
+            let spendinfo = self.get_spendinfo().await?;
+            builder
+                .add_sapling_spend(info.to_builder_data(spendinfo))
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
         }
         log::info!("getting output data from ledger");
         for info in input.vec_soutput.iter() {
-            let req = self.get_outputinfo().await;
-            if req.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
-            let outputinfo = req.unwrap();
-            let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
-            if r.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
+            let outputinfo = self.get_outputinfo().await?;
+            builder
+                .add_sapling_output(info.to_builder_data(outputinfo))
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
         }
         let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
-        let r = builder.build(&mut prover);
-        if r.is_err() {
-            return Err(LedgerAppError::AppSpecific(1, r.err().unwrap().to_string()));
-        }
+        let ledgertxblob = builder
+            .build(&mut prover)
+            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
         log::info!("building the transaction success");
-        let ledgertxblob = r.unwrap();
         log::info!("sending checkdata to ledger");
-        let req = self.checkandsign(ledgertxblob.as_slice()).await;
-        if req.is_err() {
-            return Err(LedgerAppError::Crypto);
-        }
+        self.checkandsign(ledgertxblob.as_slice()).await?;
         log::info!("checking and signing succeeded by ledger");
 
         let mut transparent_sigs = Vec::new();
@@ -976,19 +940,19 @@ impl ZcashApp {
         log::info!("requesting signatures");
 
         for _ in 0..input.vec_tin.len() {
-            let req = self.get_transparent_signature().await;
-            if req.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
-            transparent_sigs.push(req.unwrap());
+            let sig = self
+                .get_transparent_signature()
+                .await
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
+            transparent_sigs.push(sig);
         }
 
         for _ in 0..input.vec_sspend.len() {
-            let req = self.get_spend_signature().await;
-            if req.is_err() {
-                return Err(LedgerAppError::Crypto);
-            }
-            spend_sigs.push(req.unwrap());
+            let sig = self
+                .get_spend_signature()
+                .await
+                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
+            spend_sigs.push(sig);
         }
         log::info!("all signatures retrieved");
         let sigs = TransactionSignatures {
@@ -996,17 +960,15 @@ impl ZcashApp {
             spend_sigs,
         };
         log::info!("finalizing transaction");
-        let r = builder.add_signatures(sigs);
-        if r.is_err() {
-            return Err(LedgerAppError::Crypto);
-        }
+        builder
+            .add_signatures(sigs)
+            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        let r = builder.finalize();
+        let txdata = builder
+            .finalize()
+            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        if r.is_err() {
-            return Err(LedgerAppError::Crypto);
-        }
         log::info!("final transaction complete");
-        Ok(r.unwrap())
+        Ok(txdata)
     }
 }
