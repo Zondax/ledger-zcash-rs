@@ -3,7 +3,8 @@
     unused_imports,
     unused_mut,
     unused_variables,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::result_unit_err
 )]
 
 extern crate hex;
