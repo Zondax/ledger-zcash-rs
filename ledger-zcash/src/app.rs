@@ -100,8 +100,14 @@ const SPENDDATA_SIZE: usize = AK_SIZE + NSK_SIZE + ALPHA_SIZE + RCV_SIZE;
 ///RCM size
 const RSEED_SIZE: usize = 32;
 
-///Spenddata length: RCV (32) + RCM (32) +
+///hashseed size
+const HASHSEED_SIZE: usize = 32;
+
+///outputdata length: RCV (32) + RCM (32) +
 const OUTPUTDATA_SIZE: usize = RCV_SIZE + RSEED_SIZE;
+
+///outputdata length: RCV (32) + RCM (32) + Hashseed (32)
+const OUTPUTDATA_HASHSEED_SIZE: usize = RCV_SIZE + RSEED_SIZE + HASHSEED_SIZE;
 
 /// Public Key Length (secp256k1)
 pub const PK_LEN_SECP261K1: usize = 33;
@@ -262,11 +268,10 @@ impl DataShieldedOutput {
     }
 
     ///Take the fields plus additional inputs to send to builder
-    pub fn to_builder_data(&self, outputinfo: (jubjub::Fr, Rseed)) -> OutputBuilderInfo {
-        let seed = match self.ovk {
-            None => Some(HashSeed([0u8; 32])),
-            Some(_) => None,
-        };
+    pub fn to_builder_data(
+        &self,
+        outputinfo: (jubjub::Fr, Rseed, Option<HashSeed>),
+    ) -> OutputBuilderInfo {
         OutputBuilderInfo {
             rcv: outputinfo.0,
             rseed: outputinfo.1,
@@ -274,7 +279,7 @@ impl DataShieldedOutput {
             address: self.address.clone(),
             value: self.value,
             memo: self.memo.clone(),
-            hash_seed: seed,
+            hash_seed: outputinfo.2,
         }
     }
 }
@@ -751,7 +756,9 @@ impl ZcashApp {
     }
 
     ///Get the information needed from ledger to make a shielded output
-    pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, Rseed), LedgerAppError> {
+    pub async fn get_outputinfo(
+        &self,
+    ) -> Result<(jubjub::Fr, Rseed, Option<HashSeed>), LedgerAppError> {
         let command = APDUCommand {
             cla: self.cla(),
             ins: INS_EXTRACT_OUTPUT,
@@ -789,11 +796,18 @@ impl ZcashApp {
         let rcv = f.unwrap();
 
         let mut rseedb = [0u8; RSEED_SIZE];
-        rseedb.copy_from_slice(&bytes[RCV_SIZE..OUTPUTDATA_SIZE]);
+        rseedb.copy_from_slice(&bytes[RCV_SIZE..RCV_SIZE + RSEED_SIZE]);
 
         let rseed = Rseed::AfterZip212(rseedb);
-
-        Ok((rcv, rseed))
+        let hashseed = match bytes.len() {
+            OUTPUTDATA_HASHSEED_SIZE => {
+                let mut seed = [0u8; HASHSEED_SIZE];
+                seed.copy_from_slice(&bytes[RCV_SIZE + RSEED_SIZE..OUTPUTDATA_HASHSEED_SIZE]);
+                Some(HashSeed(seed))
+            }
+            _ => None,
+        };
+        Ok((rcv, rseed, hashseed))
     }
 
     ///Get a transparent signature from the ledger
