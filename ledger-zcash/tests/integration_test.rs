@@ -584,7 +584,7 @@ mod integration_tests {
             memo: None,
         };
 
-        let fee = 10000;
+        let fee = 1000;
 
         let txfee = Amount::from_u64(fee).unwrap();
         let change_amount = spend1.value + spend2.value - output1.value - txfee;
