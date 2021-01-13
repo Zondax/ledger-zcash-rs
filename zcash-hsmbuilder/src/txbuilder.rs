@@ -22,16 +22,23 @@ use zcash_primitives::{
     transaction::components::{OutPoint, TxIn},
 };
 
+use sha2::{Digest, Sha256};
+
 use crate::errors::Error;
 use crate::sighashdata::signature_hash_input_data;
 use crate::txprover::TxProver;
-use crate::HsmTxData;
+use crate::{HashSeed, HsmTxData};
+use crypto_api_chachapoly::ChachaPolyIetf;
 
 const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See https://github.com/zcash/zcash/issues/3615
 const MIN_SHIELDED_OUTPUTS: usize = 2;
+
+const OUT_PLAINTEXT_SIZE: usize = 32 + // pk_d
+    32; // esk
+const OUT_CIPHERTEXT_SIZE: usize = OUT_PLAINTEXT_SIZE + 16;
 
 #[derive(Clone)]
 struct SpendDescriptionInfo {
@@ -55,6 +62,7 @@ pub struct SaplingOutput {
     note: Note,
     memo: Memo,
     rcv: jubjub::Fr, //get from ledger
+    hashseed: Option<HashSeed>,
 }
 
 impl SaplingOutput {
@@ -65,6 +73,7 @@ impl SaplingOutput {
         memo: Option<Memo>,
         rcv: jubjub::Fr,
         rseed: Rseed,
+        hashseed: Option<HashSeed>,
     ) -> Result<Self, Error> {
         let g_d = match to.g_d() {
             Some(g_d) => g_d,
@@ -89,6 +98,7 @@ impl SaplingOutput {
             note,
             memo: memo.unwrap_or_default(),
             rcv,
+            hashseed,
         })
     }
 
@@ -118,7 +128,31 @@ impl SaplingOutput {
         let cmu = self.note.cmu();
 
         let enc_ciphertext = encryptor.encrypt_note_plaintext();
-        let out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu);
+        let mut out_ciphertext;
+        if self.ovk.is_some() {
+            out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu);
+        } else {
+            let seed = self.hashseed.unwrap().0;
+            let mut randbytes = [0u8; 32 + OUT_PLAINTEXT_SIZE];
+            for i in 0..3 {
+                let mut sha256 = Sha256::new();
+                sha256.update([i as u8]);
+                sha256.update(seed);
+                let h = sha256.finalize();
+                randbytes[i * 32..(i + 1) * 32].copy_from_slice(&h);
+            }
+            let mut ock = [0u8; 32];
+            ock.copy_from_slice(&randbytes[0..32]);
+            let mut input = [0u8; OUT_PLAINTEXT_SIZE];
+            input.copy_from_slice(&randbytes[32..]);
+            out_ciphertext = [0u8; OUT_CIPHERTEXT_SIZE];
+            assert_eq!(
+                ChachaPolyIetf::aead_cipher()
+                    .seal_to(&mut out_ciphertext, &input, &[], ock.as_ref(), &[0u8; 12])
+                    .unwrap(),
+                OUT_CIPHERTEXT_SIZE
+            );
+        }
 
         let ephemeral_key = encryptor.epk().clone().into();
 
@@ -553,8 +587,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         memo: Option<Memo>,
         rcv: jubjub::Fr,
         rseed: Rseed,
+        hash_seed: Option<HashSeed>,
     ) -> Result<(), Error> {
-        let output = SaplingOutput::new::<R, P>(ovk, to, value, memo, rcv, rseed)?;
+        let output = SaplingOutput::new::<R, P>(ovk, to, value, memo, rcv, rseed, hash_seed)?;
 
         self.mtx.value_balance -= value;
 

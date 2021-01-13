@@ -44,8 +44,9 @@ use zx_bip44::BIP44Path;
 use byteorder::{LittleEndian, WriteBytesExt};
 use zcash_hsmbuilder::txbuilder::TransactionMetadata;
 use zcash_hsmbuilder::{
-    InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo, TinData,
-    ToutData, TransactionSignatures, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+    HashSeed, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
+    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
+    TransparentOutputBuilderInfo,
 };
 
 use sha2::{Digest, Sha256};
@@ -262,6 +263,10 @@ impl DataShieldedOutput {
 
     ///Take the fields plus additional inputs to send to builder
     pub fn to_builder_data(&self, outputinfo: (jubjub::Fr, Rseed)) -> OutputBuilderInfo {
+        let seed = match self.ovk {
+            None => Some(HashSeed([0u8; 32])),
+            Some(_) => None,
+        };
         OutputBuilderInfo {
             rcv: outputinfo.0,
             rseed: outputinfo.1,
@@ -269,6 +274,7 @@ impl DataShieldedOutput {
             address: self.address.clone(),
             value: self.value,
             memo: self.memo.clone(),
+            hash_seed: seed,
         }
     }
 }

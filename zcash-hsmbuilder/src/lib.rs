@@ -163,9 +163,6 @@ impl HsmTxData {
 }
 
 pub struct ZcashBuilder {
-    secret_key: Option<[u8; 32]>,
-    public_key: Option<[u8; 32]>,
-    session_key: Option<[u8; 32]>,
     num_transparent_inputs: usize,
     num_transparent_outputs: usize,
     num_spends: usize,
@@ -213,6 +210,10 @@ pub struct SpendBuilderInfo {
     pub rseed: Rseed,
 }
 
+/// An outgoing viewing key
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HashSeed(pub [u8; 32]);
+
 #[derive(Debug, Deserialize)]
 pub struct OutputBuilderInfo {
     #[serde(deserialize_with = "fr_deserialize")]
@@ -227,6 +228,8 @@ pub struct OutputBuilderInfo {
     pub value: Amount,
     #[serde(deserialize_with = "memo_deserialize")]
     pub memo: Option<Memo>,
+    #[serde(deserialize_with = "hashseed_deserialize")]
+    pub hash_seed: Option<HashSeed>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,9 +243,6 @@ pub struct TransactionSignatures {
 impl ZcashBuilder {
     pub fn new(fee: u64) -> ZcashBuilder {
         ZcashBuilder {
-            secret_key: None,
-            public_key: None,
-            session_key: None,
             num_transparent_inputs: 0,
             num_transparent_outputs: 0,
             num_spends: 0,
@@ -308,6 +308,7 @@ impl ZcashBuilder {
             info.memo,
             info.rcv,
             info.rseed,
+            info.hash_seed,
         );
         if r.is_ok() {
             self.num_outputs += 1;
