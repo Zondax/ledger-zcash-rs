@@ -301,6 +301,9 @@ impl ZcashBuilder {
     }
 
     pub fn add_sapling_output(&mut self, info: OutputBuilderInfo) -> Result<(), Error> {
+        if info.ovk.is_none() && info.hash_seed.is_none() {
+            return Err(Error::InvalidOVKHashSeed);
+        }
         let r = self.builder.add_sapling_output(
             info.ovk,
             info.address,
