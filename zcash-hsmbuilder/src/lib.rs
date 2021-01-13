@@ -123,8 +123,10 @@ impl InitData {
             data.extend_from_slice(&info.value.to_i64_le_bytes());
             data.push(info.memo_type);
             if info.ovk.is_some() {
+                data.push(0x01);
                 data.extend_from_slice(&info.ovk.unwrap().0);
             } else {
+                data.push(0x00);
                 data.extend_from_slice(&[0u8; 32]);
             }
         }
