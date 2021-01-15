@@ -18,6 +18,7 @@ pub enum Error {
     MinShieldedOuputs,
     BuilderNoKeys,
     ReadWriteError,
+    InvalidOVKHashSeed,
 }
 
 impl fmt::Display for Error {
@@ -40,6 +41,7 @@ impl fmt::Display for Error {
             Error::MinShieldedOuputs => write!(f, "Not enough shielded outputs for transaction"),
             Error::BuilderNoKeys => write!(f, "Builder does not have any keys set"),
             Error::ReadWriteError => write!(f, "Error writing/reading bytes to/from vector"),
+            Error::InvalidOVKHashSeed => write!(f, "Error: either OVK or hashseed should be some"),
         }
     }
 }

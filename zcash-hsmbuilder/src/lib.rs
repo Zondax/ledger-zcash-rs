@@ -3,7 +3,8 @@
     unused_imports,
     unused_mut,
     unused_variables,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::result_unit_err
 )]
 
 extern crate hex;
@@ -122,8 +123,10 @@ impl InitData {
             data.extend_from_slice(&info.value.to_i64_le_bytes());
             data.push(info.memo_type);
             if info.ovk.is_some() {
+                data.push(0x01);
                 data.extend_from_slice(&info.ovk.unwrap().0);
             } else {
+                data.push(0x00);
                 data.extend_from_slice(&[0u8; 32]);
             }
         }
@@ -160,9 +163,6 @@ impl HsmTxData {
 }
 
 pub struct ZcashBuilder {
-    secret_key: Option<[u8; 32]>,
-    public_key: Option<[u8; 32]>,
-    session_key: Option<[u8; 32]>,
     num_transparent_inputs: usize,
     num_transparent_outputs: usize,
     num_spends: usize,
@@ -210,6 +210,10 @@ pub struct SpendBuilderInfo {
     pub rseed: Rseed,
 }
 
+/// An outgoing viewing key
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HashSeed(pub [u8; 32]);
+
 #[derive(Debug, Deserialize)]
 pub struct OutputBuilderInfo {
     #[serde(deserialize_with = "fr_deserialize")]
@@ -224,6 +228,8 @@ pub struct OutputBuilderInfo {
     pub value: Amount,
     #[serde(deserialize_with = "memo_deserialize")]
     pub memo: Option<Memo>,
+    #[serde(deserialize_with = "hashseed_deserialize")]
+    pub hash_seed: Option<HashSeed>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,9 +243,6 @@ pub struct TransactionSignatures {
 impl ZcashBuilder {
     pub fn new(fee: u64) -> ZcashBuilder {
         ZcashBuilder {
-            secret_key: None,
-            public_key: None,
-            session_key: None,
             num_transparent_inputs: 0,
             num_transparent_outputs: 0,
             num_spends: 0,
@@ -247,48 +250,6 @@ impl ZcashBuilder {
             builder: txbuilder::Builder::<TestNetwork, OsRng>::new_with_fee(0, fee),
             branch: consensus::BranchId::Sapling,
         }
-    }
-
-    pub fn get_public_key(&mut self) -> Result<Vec<u8>, Error> {
-        if self.secret_key == None || self.public_key == None {
-            return Err(Error::BuilderNoKeys);
-        }
-        let mut v: Vec<u8> = Vec::with_capacity(32);
-        v.extend_from_slice(&self.public_key.unwrap());
-        Ok(v)
-    }
-
-    pub fn keygen(&mut self) {
-        let mut rng = OsRng;
-        let mut bytes = [0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        let f = jubjub::Fr::from_bytes_wide(&bytes);
-        let p = AffinePoint::generator() * f;
-        self.secret_key = Some(f.to_bytes());
-        self.public_key = Some(p.to_bytes());
-    }
-
-    pub fn set_session_key(&mut self, input: &[u8]) -> Result<(), Error> {
-        if self.secret_key == None || self.public_key == None {
-            return Err(Error::BuilderNoKeys);
-        }
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(input);
-        let pubclient = AffinePoint::from_bytes(bytes).unwrap().mul_by_cofactor();
-        let f = jubjub::Fr::from_bytes(&self.secret_key.unwrap()).unwrap();
-        let session_jubjub = pubclient * f;
-
-        pub const PRF_SESSION_PERSONALIZATION: &[u8; 16] = b"Zcash_SessionKey";
-        let h = Blake2bParams::new()
-            .hash_length(32)
-            .personal(PRF_SESSION_PERSONALIZATION)
-            .hash(&session_jubjub.to_bytes());
-
-        let mut session_key = [0u8; 32];
-        session_key.copy_from_slice(&h.as_bytes());
-        assert_ne!(session_key, [0u8; 32]);
-        self.session_key = Some(session_key);
-        Ok(())
     }
 
     pub fn add_transparent_input(
@@ -340,6 +301,9 @@ impl ZcashBuilder {
     }
 
     pub fn add_sapling_output(&mut self, info: OutputBuilderInfo) -> Result<(), Error> {
+        if info.ovk.is_none() && info.hash_seed.is_none() {
+            return Err(Error::InvalidOVKHashSeed);
+        }
         let r = self.builder.add_sapling_output(
             info.ovk,
             info.address,
@@ -347,6 +311,7 @@ impl ZcashBuilder {
             info.memo,
             info.rcv,
             info.rseed,
+            info.hash_seed,
         );
         if r.is_ok() {
             self.num_outputs += 1;
@@ -360,12 +325,8 @@ impl ZcashBuilder {
     }
 
     pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {
-        let r = self
-            .builder
-            .add_signatures_transparant(input.transparent_sigs, self.branch);
-        if r.is_err() {
-            return r;
-        }
+        self.builder
+            .add_signatures_transparant(input.transparent_sigs, self.branch)?;
         self.builder.add_signatures_spend(input.spend_sigs)
     }
 

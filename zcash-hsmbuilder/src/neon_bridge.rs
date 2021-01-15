@@ -1,5 +1,6 @@
 use std::str::*;
 
+use crate::HashSeed;
 use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
@@ -210,5 +211,19 @@ where
             v.push(s.unwrap());
         }
         Ok(v)
+    }
+}
+
+pub fn hashseed_deserialize<'de, D>(deserializer: D) -> Result<Option<HashSeed>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let str: Option<String> = Option::deserialize(deserializer)?;
+    if let Some(s) = str {
+        let mut bytes = [0u8; 32];
+        hex::decode_to_slice(&s, &mut bytes).map_err(D::Error::custom)?;
+        Ok(Some(HashSeed(bytes)))
+    } else {
+        Ok(None)
     }
 }
