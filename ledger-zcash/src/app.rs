@@ -31,8 +31,8 @@ use ledger_zondax_generic::{
 };
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
+use zcash_primitives::memo::MemoBytes as Memo;
 use zcash_primitives::merkle_tree::IncrementalWitness;
-use zcash_primitives::note_encryption::Memo;
 use zcash_primitives::primitives::Rseed;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
 use zcash_primitives::redjubjub::Signature;
@@ -262,7 +262,7 @@ impl DataShieldedOutput {
         ShieldedOutputData {
             address: self.address.clone(),
             value: self.value,
-            memo_type: self.memo.as_ref().map(|v| v.as_bytes()[0]).unwrap_or(0xf6),
+            memo_type: self.memo.as_ref().map(|v| v.as_array()[0]).unwrap_or(0xf6),
             ovk: self.ovk,
         }
     }

@@ -11,11 +11,11 @@ use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
 use zcash_primitives::transaction::components::{Amount, TxOut, GROTH_PROOF_SIZE};
 use zcash_primitives::transaction::{
-    signature_hash_data, Transaction, TransactionData, SIGHASH_ALL,
+    signature_hash_data, SignableInput, Transaction, TransactionData, SIGHASH_ALL,
 };
 use zcash_primitives::{
-    consensus, keys::OutgoingViewingKey, legacy::TransparentAddress, merkle_tree::MerklePath,
-    note_encryption::Memo, redjubjub::PublicKey, sapling::Node, util::generate_random_rseed,
+    consensus, keys::OutgoingViewingKey, legacy::TransparentAddress, memo::MemoBytes as Memo,
+    merkle_tree::MerklePath, redjubjub::PublicKey, sapling::Node, util::generate_random_rseed,
 };
 use zcash_primitives::{
     legacy::Script,
@@ -96,7 +96,7 @@ impl SaplingOutput {
             ovk,
             to,
             note,
-            memo: memo.unwrap_or_default(),
+            memo: memo.unwrap_or_else(|| Memo::empty()),
             rcv,
             hashseed,
         })
@@ -238,7 +238,7 @@ impl TransparentInputs {
                 mtx,
                 consensus_branch_id,
                 SIGHASH_ALL,
-                Some((i, &info.coin.script_pubkey, info.coin.value)),
+                SignableInput::transparent(i, &info.coin.script_pubkey, info.coin.value),
             ));
 
             let msg = secp256k1::Message::from_slice(&sighash).expect("32 bytes");
@@ -440,7 +440,7 @@ impl SpendDescription {
         SpendDescription {
             cv: info.cv.to_bytes(),
             anchor: info.anchor.to_bytes(),
-            nullifier: info.nullifier,
+            nullifier: info.nullifier.0,
             rk: info.rk.0.to_bytes(),
             zkproof: info.zkproof,
         }
@@ -501,7 +501,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     /// The fee will be set to the default fee (0.0001 ZEC).
     pub fn new_with_rng(height: u32, rng: R) -> Builder<P, R> {
         let mut mtx = TransactionData::new();
-        mtx.expiry_height = height + DEFAULT_TX_EXPIRY_DELTA;
+        mtx.expiry_height = (height + DEFAULT_TX_EXPIRY_DELTA).into();
 
         Builder {
             rng,
@@ -519,7 +519,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
     pub fn new_with_fee_rng(height: u32, rng: R, fee: u64) -> Builder<P, R> {
         let mut mtx = TransactionData::new();
-        mtx.expiry_height = height + DEFAULT_TX_EXPIRY_DELTA;
+        mtx.expiry_height = (height + DEFAULT_TX_EXPIRY_DELTA).into();
         let txfee = Amount::from_u64(fee).unwrap();
 
         Builder {
@@ -712,11 +712,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             for (_, spend) in spends.iter() {
                 let proof_generation_key = spend.proofkey.clone();
 
-                let mut nullifier = [0u8; 32];
-                nullifier.copy_from_slice(&spend.note.nf(
+                let nullifier = spend.note.nf(
                     &proof_generation_key.to_viewing_key(),
                     spend.merkle_path.position,
-                ));
+                );
+
                 let (zkproof, cv, rk) = prover
                     .spend_proof(
                         &mut ctx,
@@ -760,7 +760,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             &self.mtx,
             consensus_branch_id,
             SIGHASH_ALL,
-            None,
+            SignableInput::Shielded,
         ));
 
         // Add a binding signature if needed
@@ -870,9 +870,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
      */
     pub fn finalize_js(&mut self) -> Result<Vec<u8>, Error> {
         let mut txdata_copy = TransactionData::new();
-        txdata_copy.overwintered = self.mtx.overwintered;
         txdata_copy.version = self.mtx.version;
-        txdata_copy.version_group_id = self.mtx.version_group_id;
         txdata_copy.vin = vec![];
         for info in self.mtx.vin.iter() {
             let tin = TxIn {

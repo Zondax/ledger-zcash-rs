@@ -11,7 +11,7 @@ use zcash_primitives::{
     sapling::Node,
     transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
-use zcash_proofs::{default_params_folder, load_parameters};
+use zcash_proofs::{default_params_folder, load_parameters, ZcashParameters};
 
 use crate::prover::SaplingProvingContext;
 
@@ -52,8 +52,12 @@ impl LocalTxProver {
     /// This function will panic if the paths do not point to valid parameter files with
     /// the expected hashes.
     pub fn new(spend_path: &Path, output_path: &Path) -> Self {
-        let (spend_params, spend_vk, output_params, _, _) =
-            load_parameters(spend_path, output_path, None);
+        let ZcashParameters {
+            spend_params,
+            spend_vk,
+            output_params,
+            ..
+        } = load_parameters(spend_path, output_path, None);
         LocalTxProver {
             spend_params,
             spend_vk,
