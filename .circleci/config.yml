@@ -6,7 +6,7 @@ jobs:
       - image: zondax/rust-ci:latest
     steps:
       - checkout
-      - run: sudo apt-get install libudev-dev libusb-1.0-0-dev
+      - run: sudo apt-get -y install libudev-dev libusb-1.0-0-dev
       - run:
           name: rustfmt
           command: |
@@ -40,7 +40,7 @@ jobs:
       - image: zondax/rust-ci:latest
     steps:
       - checkout
-      - run: sudo apt-get install libudev-dev libusb-1.0-0-dev
+      - run: sudo apt-get -y install libudev-dev libusb-1.0-0-dev
       - run:
           name: test --all-features
           command: |
