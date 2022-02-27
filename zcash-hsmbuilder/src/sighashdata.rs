@@ -20,7 +20,7 @@ const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C4_8270;
 const SAPLING_VERSION_GROUP_ID: u32 = 0x892F_2085;
 const SAPLING_TX_VERSION: u32 = 4;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct TransactionDataSighash {
     pub header: [u8; 4],
     pub version_id: [u8; 4],
@@ -34,25 +34,6 @@ pub struct TransactionDataSighash {
     pub expiry_height: [u8; 4],
     pub value_balance: [u8; 8],
     pub hash_type: [u8; 4],
-}
-
-impl Default for TransactionDataSighash {
-    fn default() -> TransactionDataSighash {
-        TransactionDataSighash {
-            header: [0u8; 4],
-            version_id: [0u8; 4],
-            prevoutshash: [0u8; 32],
-            sequencehash: [0u8; 32],
-            outputshash: [0u8; 32],
-            joinsplitshash: [0u8; 32],
-            shieldedspendhash: [0u8; 32],
-            shieldedoutputhash: [0u8; 32],
-            lock_time: [0u8; 4],
-            expiry_height: [0u8; 4],
-            value_balance: [0u8; 8],
-            hash_type: [0u8; 4],
-        }
-    }
 }
 
 impl TransactionDataSighash {

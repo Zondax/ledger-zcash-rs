@@ -96,7 +96,7 @@ impl SaplingOutput {
             ovk,
             to,
             note,
-            memo: memo.unwrap_or_else(|| Memo::empty()),
+            memo: memo.unwrap_or_else(Memo::empty),
             rcv,
             hashseed,
         })
@@ -154,7 +154,7 @@ impl SaplingOutput {
             );
         }
 
-        let ephemeral_key = encryptor.epk().clone().into();
+        let ephemeral_key = (*encryptor.epk()).into();
 
         zcash_primitives::transaction::components::OutputDescription {
             cv,
@@ -349,7 +349,7 @@ fn transparent_script_data_fromtx(
     let mut data = Vec::new();
     for (i, info) in inputs.iter().enumerate() {
         let mut prevout = [0u8; 36];
-        prevout[0..32].copy_from_slice(&tx.vin[i].prevout.hash().as_ref());
+        prevout[0..32].copy_from_slice(tx.vin[i].prevout.hash().as_ref());
         prevout[32..36].copy_from_slice(&tx.vin[i].prevout.n().to_le_bytes());
 
         let mut script_pubkey = [0u8; 26];
