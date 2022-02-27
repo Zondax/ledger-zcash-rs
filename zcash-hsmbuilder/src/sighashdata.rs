@@ -20,7 +20,7 @@ const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C4_8270;
 const SAPLING_VERSION_GROUP_ID: u32 = 0x892F_2085;
 const SAPLING_TX_VERSION: u32 = 4;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct TransactionDataSighash {
     pub header: [u8; 4],
     pub version_id: [u8; 4],
@@ -34,25 +34,6 @@ pub struct TransactionDataSighash {
     pub expiry_height: [u8; 4],
     pub value_balance: [u8; 8],
     pub hash_type: [u8; 4],
-}
-
-impl Default for TransactionDataSighash {
-    fn default() -> TransactionDataSighash {
-        TransactionDataSighash {
-            header: [0u8; 4],
-            version_id: [0u8; 4],
-            prevoutshash: [0u8; 32],
-            sequencehash: [0u8; 32],
-            outputshash: [0u8; 32],
-            joinsplitshash: [0u8; 32],
-            shieldedspendhash: [0u8; 32],
-            shieldedoutputhash: [0u8; 32],
-            lock_time: [0u8; 4],
-            expiry_height: [0u8; 4],
-            value_balance: [0u8; 8],
-            hash_type: [0u8; 4],
-        }
-    }
 }
 
 impl TransactionDataSighash {
@@ -101,14 +82,12 @@ enum SigHashVersion {
 
 impl SigHashVersion {
     fn from_tx(tx: &TransactionData) -> Self {
-        if tx.overwintered {
-            match tx.version_group_id {
-                OVERWINTER_VERSION_GROUP_ID => SigHashVersion::Overwinter,
-                SAPLING_VERSION_GROUP_ID => SigHashVersion::Sapling,
-                _ => unimplemented!(),
-            }
-        } else {
-            SigHashVersion::Sprout
+        use zcash_primitives::transaction::TxVersion;
+
+        match tx.version {
+            TxVersion::Sprout(_) => SigHashVersion::Sprout,
+            TxVersion::Overwinter => SigHashVersion::Overwinter,
+            TxVersion::Sapling => SigHashVersion::Sapling,
         }
     }
 }
@@ -151,10 +130,10 @@ fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
 fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
     let mut data = Vec::with_capacity(
         tx.joinsplits.len()
-            * if tx.version < SAPLING_TX_VERSION {
-                1802 // JSDescription with PHGR13 proof
-            } else {
+            * if tx.version.uses_groth_proofs() {
                 1698 // JSDescription with Groth16 proof
+            } else {
+                1802 // JSDescription with PHGR13 proof
             },
     );
     for js in &tx.joinsplits {
@@ -172,7 +151,7 @@ fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
     for s_spend in &tx.shielded_spends {
         data.extend_from_slice(&s_spend.cv.to_bytes());
         data.extend_from_slice(s_spend.anchor.to_repr().as_ref());
-        data.extend_from_slice(&s_spend.nullifier);
+        data.extend_from_slice(&s_spend.nullifier.0[..]);
         s_spend.rk.write(&mut data).unwrap();
         data.extend_from_slice(&s_spend.zkproof);
     }
@@ -199,13 +178,11 @@ pub fn signature_hash_input_data(tx: &TransactionData, hash_type: u32) -> Transa
     let sigversion = SigHashVersion::from_tx(tx);
     match sigversion {
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
-            let mut header = tx.version;
-            if tx.overwintered {
-                header |= 1 << 31;
-            }
+            let header = tx.version.header();
+            let version_group_id = tx.version.version_group_id();
 
             write_u32!(txdata_sighash.header, header, tmp);
-            write_u32!(txdata_sighash.version_id, tx.version_group_id, tmp);
+            write_u32!(txdata_sighash.version_id, version_group_id, tmp);
             update_data!(
                 txdata_sighash.prevoutshash,
                 hash_type & SIGHASH_ANYONECANPAY == 0,
@@ -247,7 +224,8 @@ pub fn signature_hash_input_data(tx: &TransactionData, hash_type: u32) -> Transa
                 );
             }
             write_u32!(txdata_sighash.lock_time, tx.lock_time, tmp);
-            write_u32!(txdata_sighash.expiry_height, tx.expiry_height, tmp);
+            let expiry_height = tx.expiry_height.into();
+            write_u32!(txdata_sighash.expiry_height, expiry_height, tmp);
             if sigversion == SigHashVersion::Sapling {
                 txdata_sighash
                     .value_balance

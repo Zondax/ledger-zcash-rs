@@ -22,8 +22,8 @@ use zcash_primitives::consensus;
 use zcash_primitives::consensus::TestNetwork;
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
+use zcash_primitives::memo::MemoBytes as Memo;
 use zcash_primitives::merkle_tree::IncrementalWitness;
-use zcash_primitives::note_encryption::Memo;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
@@ -92,12 +92,12 @@ pub struct InitData {
 
 impl InitData {
     pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
-        let mut data = Vec::new();
-
-        data.push(self.t_in.len() as u8);
-        data.push(self.t_out.len() as u8);
-        data.push(self.s_spend.len() as u8);
-        data.push(self.s_output.len() as u8);
+        let mut data = vec![
+            self.t_in.len() as u8,
+            self.t_out.len() as u8,
+            self.s_spend.len() as u8,
+            self.s_output.len() as u8,
+        ];
 
         for info in self.t_in.iter() {
             for p in info.path.iter() {

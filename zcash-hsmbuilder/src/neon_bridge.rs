@@ -6,8 +6,8 @@ use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
+use zcash_primitives::memo::MemoBytes as Memo;
 use zcash_primitives::merkle_tree::IncrementalWitness;
-use zcash_primitives::note_encryption::Memo;
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
@@ -134,7 +134,11 @@ where
     } else {
         let mut bytes = Vec::with_capacity(str.len() / 2);
         hex::decode_to_slice(&str, &mut bytes).map_err(D::Error::custom)?;
-        Ok(Memo::from_bytes(&bytes[..]))
+        if bytes.is_empty() {
+            Ok(Some(Memo::empty()))
+        } else {
+            Ok(Memo::from_bytes(&bytes[..]).ok())
+        }
     }
 }
 

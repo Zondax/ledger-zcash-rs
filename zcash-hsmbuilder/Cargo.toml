@@ -1,7 +1,7 @@
 [package]
 name = "zcash-hsmbuilder"
 description = "Library to build transactions for HSM apps"
-version = "0.1.0"
+version = "0.2.0"
 license = "Apache-2.0"
 authors = ["Zondax GmbH <info@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
@@ -11,9 +11,6 @@ categories = ["authentication", "cryptography"]
 keywords = ["ledger", "nano", "apdu", "zcash"]
 edition = "2018"
 autobenches = false
-
-[badges]
-circle-ci = { repository = "zondax/ledger-zcash-rs" }
 
 [lib]
 name = "zcash_hsmbuilder"
@@ -30,19 +27,18 @@ lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
 pairing = { version = "0.18" }
 rand_core = "0.5.1"
-wagyu-zcash-parameters = { version = "0.2", optional = true }
 hex = { version = "0.4.2", default-features = false }
-zcash_proofs = { version = "0.4.0", features = ["multicore"] }
 group = "0.8.0"
 rand = { version = "0.7.3", default-features = false }
 crypto_api_chachapoly = "0.4.3"
-secp256k1 = { version = "0.19.0", default-features = false }
+secp256k1 = { version = "0.20" }
 sha2 = "0.9.1"
 ripemd160 = "0.9.1"
 
 serde_derive = "1.0.117"
 serde = { version = "1.0.117", features = ["derive"] }
 
-[dependencies.zcash_primitives]
-version = "0.4.0"
-features = ["transparent-inputs"]
+#zcash
+wagyu-zcash-parameters = { version = "0.2", optional = true }
+zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
+zcash_proofs = { version = "0.5", features = ["multicore"] }
