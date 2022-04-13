@@ -13,7 +13,10 @@ use zcash_primitives::{
 };
 use zcash_proofs::{default_params_folder, load_parameters, ZcashParameters};
 
-use crate::prover::SaplingProvingContext;
+use crate::{
+    prover::SaplingProvingContext,
+    txbuilder::{OutputDescription, SpendDescription},
+};
 
 // Circuit names
 const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
@@ -134,8 +137,6 @@ pub trait TxProver {
     /// Create the value commitment, re-randomized key, and proof for a Sapling
     /// [`SpendDescription`], while accumulating its value commitment randomness inside
     /// the context for later use.
-    ///
-    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
     fn spend_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -152,8 +153,6 @@ pub trait TxProver {
     /// Create the value commitment and proof for a Sapling [`OutputDescription`],
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
-    ///
-    /// [`OutputDescription`]: crate::transaction::components::OutputDescription
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
