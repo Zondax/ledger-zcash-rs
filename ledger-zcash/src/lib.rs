@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2020 Zondax GmbH
+*   (c) 2022 Zondax GmbH
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -20,10 +20,7 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-pub use ledger_transport::errors::TransportError;
-#[cfg(target_arch = "wasm32")]
-pub use ledger_transport::TransportWrapperTrait;
-pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCodes, APDUTransport};
+pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCode};
 pub use ledger_zondax_generic::LedgerAppError;
 
 /// Ledger app

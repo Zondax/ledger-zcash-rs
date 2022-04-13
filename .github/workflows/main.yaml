@@ -1,0 +1,64 @@
+name: "Main workflow"
+on:
+  - push
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    outputs:
+      uid_gid: ${{ steps.get-user.outputs.uid_gid }}
+    steps:
+      - id: get-user
+        run: echo "::set-output name=uid_gid::$(id -u):$(id -g)"
+
+  lint:
+    runs-on: ubuntu-latest
+    container:
+      image: zondax/rust-ci:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - run: sudo apt-get install -y libudev-dev libusb-1.0-0-dev
+      - name: show versions
+        run: |
+          rustup show
+      - name: rustfmt
+        run: |
+          cargo fmt --version
+          cargo fmt -- --check
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v1
+        with:
+          # setup sharedKey to share cache with other jobs
+          sharedKey: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: clippy
+        run: |
+          cargo clippy --version
+          cargo clippy --all-features
+
+  tests:
+    runs-on: ubuntu-latest
+    needs: lint
+    container:
+      image: zondax/rust-ci:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Rust Dependency Cache
+        uses: Swatinem/rust-cache@v1
+        with:
+          # setup sharedKey to share cache with other jobs
+          sharedKey: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      - run: sudo apt-get install -y libudev-dev libusb-1.0.0-dev
+      - name: test --all-features
+        run: |
+          #with --lib we only test the unit tests
+          cargo test --lib --all-features
