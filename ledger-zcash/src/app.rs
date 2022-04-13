@@ -731,7 +731,7 @@ where
             return Err(LedgerAppError::InvalidSignature);
         }
 
-        log::info!("{}", hex::encode(&response_data[..]));
+        log::info!("{}", hex::encode(response_data));
 
         let mut list = [0u8; DIV_LIST_SIZE];
         list.copy_from_slice(&response_data[..DIV_LIST_SIZE]);
@@ -781,7 +781,7 @@ where
             return Err(LedgerAppError::InvalidSignature);
         }
 
-        log::info!("{}", hex::encode(&response_data[..]));
+        log::info!("{}", hex::encode(response_data));
 
         let mut addrb = [0u8; PK_LEN_SAPLING];
         addrb.copy_from_slice(&response_data[..PK_LEN_SAPLING]);

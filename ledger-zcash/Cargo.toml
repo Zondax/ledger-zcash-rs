@@ -39,7 +39,6 @@ zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
 futures = "0.3.11"
 matches = "0.1.8"
 serial_test = "0.5.1"
-env_logger = "0.8.2"
-tokio = { version = "0.2", features = ["full"] }
-tokio-test = "0.4.0"
+env_logger = { version = "0.9.0", default-features = false }
+tokio = { version = "1", features = ["full"] }
 ledger-transport-hid = "0.9.0"

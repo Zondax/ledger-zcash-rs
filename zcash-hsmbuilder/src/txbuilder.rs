@@ -840,12 +840,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     }
 
     pub fn finalize(mut self) -> Result<(Transaction, TransactionMetadata), Error> {
-        let r = self.mtx.freeze();
-        let tx;
-        match r {
-            Ok(t) => tx = t,
-            Err(_) => return Err(Error::Finalization),
-        }
+        let tx = self.mtx.freeze().map_err(|_| Error::Finalization)?;
         let mut tx_meta = TransactionMetadata::new();
         tx_meta.spend_indices = (0..self.spends.len()).collect();
         tx_meta.output_indices = (0..self.outputs.len()).collect();
@@ -915,12 +910,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         txdata_copy.joinsplit_pubkey = None;
         txdata_copy.joinsplit_sig = None;
         txdata_copy.binding_sig = self.mtx.binding_sig;
-        let r = txdata_copy.freeze();
-        let tx;
-        match r {
-            Ok(t) => tx = t,
-            Err(_) => return Err(Error::Finalization),
-        }
+        let tx = txdata_copy.freeze().map_err(|_| Error::Finalization)?;
         let mut v = Vec::new();
         tx.write(&mut v)?;
         Ok(v)
