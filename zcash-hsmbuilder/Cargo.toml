@@ -20,23 +20,23 @@ jubjub = { version = "0.5.1", default-features = false }
 bellman = { version = "0.8", default-features = false, features = ["groth16"] }
 blake2b_simd = "0.5"
 bls12_381 = { version = "0.3.1" }
-byteorder = "1.3.4"
+byteorder = "1.4.3"
 directories = { version = "3", optional = true }
 ff = { version = "0.8.0" }
 lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
-pairing = { version = "0.18" }
-rand_core = "0.5.1"
-hex = { version = "0.4.2", default-features = false }
+pairing = { version = "0.22" }
+rand_core = "0.5"
+hex = { version = "0.4", default-features = false }
 group = "0.8.0"
 rand = { version = "0.7.3", default-features = false }
-crypto_api_chachapoly = "0.4.3"
+crypto_api_chachapoly = "0.5.0"
 secp256k1 = { version = "0.20" }
-sha2 = "0.9.1"
-ripemd160 = "0.9.1"
+sha2 = "0.9"
+ripemd160 = "0.9"
 
-serde_derive = "1.0.117"
-serde = { version = "1.0.117", features = ["derive"] }
+serde_derive = "1"
+serde = { version = "1", features = ["derive"] }
 
 #zcash
 wagyu-zcash-parameters = { version = "0.2", optional = true }

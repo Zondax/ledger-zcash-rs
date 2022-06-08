@@ -1,7 +1,7 @@
 [package]
 name = "ledger-zcash"
 description = "Library to integrate with the Ledger Zcash app"
-version = "0.3.0"
+version = "0.4.0"
 license = "Apache-2.0"
 authors = ["Zondax GmbH <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
@@ -9,24 +9,24 @@ repository = "https://github.com/Zondax/ledger-zcash-rs"
 readme = "README.md"
 categories = ["authentication", "cryptography"]
 keywords = ["ledger", "nano", "apdu", "zcash"]
-edition = "2018"
+edition = "2021"
 autobenches = false
 
 [lib]
 name = "ledger_zcash"
 
 [dependencies]
-byteorder = "1.4.2"
+byteorder = "1.4.3"
 lazy_static = "1.4.0"
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0.23"
-log = "0.4.13"
+thiserror = "1.0.31"
+log = "0.4.17"
 zx-bip44 = "0.1.0"
-hex = "0.4.2"
+hex = "0.4.3"
 jubjub = { version = "0.5.1", default-features = false }
-secp256k1 = { version = "0.20.0", default-features = false }
+secp256k1 = { version = "0.20", default-features = false }
 group = "0.8.0"
-sha2 = "0.9.2"
+sha2 = "0.9"
 
 ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
@@ -36,9 +36,9 @@ zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.2" }
 zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
 
 [dev-dependencies]
-futures = "0.3.11"
-matches = "0.1.8"
-serial_test = "0.5.1"
+futures = "0.3.21"
+matches = "0.1.9"
+serial_test = "0.7.0"
 env_logger = { version = "0.9.0", default-features = false }
 tokio = { version = "1", features = ["full"] }
 ledger-transport-hid = "0.9.0"
