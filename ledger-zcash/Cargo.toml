@@ -34,6 +34,10 @@ ledger-zondax-generic = "0.9.1"
 #zcash
 zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.2" }
 zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
+rand_core = "0.5"
+arrayvec = "0.7.2"
+ripemd = "0.1.1"
+ff = "0.8"
 
 [dev-dependencies]
 futures = "0.3.11"

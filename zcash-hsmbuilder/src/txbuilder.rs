@@ -6,16 +6,22 @@ use group::GroupEncoding;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
 use zcash_primitives::note_encryption::SaplingNoteEncryption;
-use zcash_primitives::primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed};
+use zcash_primitives::primitives::{
+    Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed,
+};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
-use zcash_primitives::transaction::components::{Amount, TxOut, GROTH_PROOF_SIZE};
+use zcash_primitives::transaction::components::{
+    Amount, TxOut, GROTH_PROOF_SIZE,
+};
 use zcash_primitives::transaction::{
-    signature_hash_data, SignableInput, Transaction, TransactionData, SIGHASH_ALL,
+    signature_hash_data, SignableInput, Transaction, TransactionData,
+    SIGHASH_ALL,
 };
 use zcash_primitives::{
-    consensus, keys::OutgoingViewingKey, legacy::TransparentAddress, memo::MemoBytes as Memo,
-    merkle_tree::MerklePath, redjubjub::PublicKey, sapling::Node, util::generate_random_rseed,
+    consensus, keys::OutgoingViewingKey, legacy::TransparentAddress,
+    memo::MemoBytes as Memo, merkle_tree::MerklePath, redjubjub::PublicKey,
+    sapling::Node, util::generate_random_rseed,
 };
 use zcash_primitives::{
     legacy::Script,
@@ -148,7 +154,13 @@ impl SaplingOutput {
             out_ciphertext = [0u8; OUT_CIPHERTEXT_SIZE];
             assert_eq!(
                 ChachaPolyIetf::aead_cipher()
-                    .seal_to(&mut out_ciphertext, &input, &[], ock.as_ref(), &[0u8; 12])
+                    .seal_to(
+                        &mut out_ciphertext,
+                        &input,
+                        &[],
+                        ock.as_ref(),
+                        &[0u8; 12]
+                    )
                     .unwrap(),
                 OUT_CIPHERTEXT_SIZE
             );
@@ -201,7 +213,9 @@ impl TransparentInputs {
             Some(TransparentAddress::PublicKey(hash)) => {
                 use ripemd160::Ripemd160;
                 use sha2::{Digest, Sha256};
-                if hash[..] != Ripemd160::digest(&Sha256::digest(&pubkey.serialize()))[..] {
+                if hash[..]
+                    != Ripemd160::digest(&Sha256::digest(&pubkey.serialize()))[..]
+                {
                     return Err(Error::InvalidAddressHash);
                 }
             }
@@ -238,10 +252,15 @@ impl TransparentInputs {
                 mtx,
                 consensus_branch_id,
                 SIGHASH_ALL,
-                SignableInput::transparent(i, &info.coin.script_pubkey, info.coin.value),
+                SignableInput::transparent(
+                    i,
+                    &info.coin.script_pubkey,
+                    info.coin.value,
+                ),
             ));
 
-            let msg = secp256k1::Message::from_slice(&sighash).expect("32 bytes");
+            let msg =
+                secp256k1::Message::from_slice(&sighash).expect("32 bytes");
             let sig = signatures[i];
             let pk = info.pubkey;
             if self.secp.verify(&msg, &sig, &pk).is_err() {
@@ -252,8 +271,9 @@ impl TransparentInputs {
             sig_bytes.extend(&[SIGHASH_ALL as u8]);
 
             // P2PKH scriptSig
-            mtx.vin[i].script_sig =
-                Script::default() << &sig_bytes[..] << &info.pubkey.serialize()[..];
+            mtx.vin[i].script_sig = Script::default()
+                << &sig_bytes[..]
+                << &info.pubkey.serialize()[..];
         }
         Ok(())
     }
@@ -307,7 +327,7 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng> {
     spends: Vec<SpendDescriptionInfo>,
     outputs: Vec<SaplingOutput>,
     transparent_inputs: TransparentInputs,
-    phantom: PhantomData<P>,
+    params: P,
     pub sighash: [u8; 32],
 }
 
@@ -321,12 +341,12 @@ impl<P: consensus::Parameters> Builder<P, OsRng> {
     /// expiry delta (20 blocks).
     ///
     /// The fee will be set to the default fee (0.0001 ZEC).
-    pub fn new(height: u32) -> Self {
-        Builder::new_with_rng(height, OsRng)
+    pub fn new(params: P, height: u32) -> Self {
+        Builder::new_with_rng(params, height, OsRng)
     }
 
-    pub fn new_with_fee(height: u32, fee: u64) -> Self {
-        Builder::new_with_fee_rng(height, OsRng, fee)
+    pub fn new_with_fee(params: P, height: u32, fee: u64) -> Self {
+        Builder::new_with_fee_rng(params, height, OsRng, fee)
     }
 }
 
@@ -499,12 +519,13 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     /// expiry delta (20 blocks).
     ///
     /// The fee will be set to the default fee (0.0001 ZEC).
-    pub fn new_with_rng(height: u32, rng: R) -> Builder<P, R> {
+    pub fn new_with_rng(params: P, height: u32, rng: R) -> Self {
         let mut mtx = TransactionData::new();
         mtx.expiry_height = (height + DEFAULT_TX_EXPIRY_DELTA).into();
 
-        Builder {
+        Self {
             rng,
+            params,
             height,
             mtx,
             fee: DEFAULT_FEE,
@@ -512,18 +533,18 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             spends: vec![],
             outputs: vec![],
             transparent_inputs: TransparentInputs::default(),
-            phantom: PhantomData,
             sighash: [0u8; 32],
         }
     }
 
-    pub fn new_with_fee_rng(height: u32, rng: R, fee: u64) -> Builder<P, R> {
+    pub fn new_with_fee_rng(params: P, height: u32, rng: R, fee: u64) -> Self {
         let mut mtx = TransactionData::new();
         mtx.expiry_height = (height + DEFAULT_TX_EXPIRY_DELTA).into();
         let txfee = Amount::from_u64(fee).unwrap();
 
-        Builder {
+        Self {
             rng,
+            params,
             height,
             mtx,
             fee: txfee,
@@ -531,7 +552,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             spends: vec![],
             outputs: vec![],
             transparent_inputs: TransparentInputs::default(),
-            phantom: PhantomData,
             sighash: [0u8; 32],
         }
     }
@@ -564,7 +584,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         }
          */
 
-        self.mtx.value_balance += Amount::from_u64(note.value).map_err(|_| Error::InvalidAmount)?;
+        self.mtx.value_balance +=
+            Amount::from_u64(note.value).map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             diversifier,
@@ -589,7 +610,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         rseed: Rseed,
         hash_seed: Option<HashSeed>,
     ) -> Result<(), Error> {
-        let output = SaplingOutput::new::<R, P>(ovk, to, value, memo, rcv, rseed, hash_seed)?;
+        let output = SaplingOutput::new::<R, P>(
+            ovk, to, value, memo, rcv, rseed, hash_seed,
+        )?;
 
         self.mtx.value_balance -= value;
 
@@ -610,7 +633,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     }
 
     /// Adds a transparent address to send funds to.
-    pub fn add_transparent_output(&mut self, to: Script, value: Amount) -> Result<(), Error> {
+    pub fn add_transparent_output(
+        &mut self,
+        to: Script,
+        value: Amount,
+    ) -> Result<(), Error> {
         if value.is_negative() {
             return Err(Error::InvalidAmount);
         }
@@ -653,17 +680,13 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         consensus_branch_id: consensus::BranchId,
         prover: &impl TxProver,
     ) -> Result<HsmTxData, Error> {
-        let mut localrng = OsRng;
-
-        let mut buf = [0u8; 64];
-
-        localrng.fill_bytes(&mut buf);
         //
         // Consistency checks
         //
 
         // Valid change
-        let change = self.mtx.value_balance - self.fee + self.transparent_inputs.value_sum()
+        let change = self.mtx.value_balance - self.fee
+            + self.transparent_inputs.value_sum()
             - self
                 .mtx
                 .vout
@@ -687,8 +710,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         //
         // Record initial positions of spends and outputs
         //
-        let spends: Vec<_> = self.spends.clone().into_iter().enumerate().collect();
-        let mut outputs: Vec<_> = self.outputs.clone().into_iter().enumerate().collect();
+        let spends: Vec<_> =
+            self.spends.clone().into_iter().enumerate().collect();
+        let mut outputs: Vec<_> =
+            self.outputs.clone().into_iter().enumerate().collect();
 
         //
         // Sapling spends and outputs
@@ -707,7 +732,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
         // Create Sapling SpendDescriptions
         if !spends.is_empty() {
-            let anchor = self.anchor.expect("anchor was set if spends were added");
+            let anchor =
+                self.anchor.expect("anchor was set if spends were added");
 
             for (_, spend) in spends.iter() {
                 let proof_generation_key = spend.proofkey.clone();
@@ -767,14 +793,21 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         if binding_sig_needed {
             self.mtx.binding_sig = Some(
                 prover
-                    .binding_sig(&mut ctx, self.mtx.value_balance, &self.sighash)
+                    .binding_sig(
+                        &mut ctx,
+                        self.mtx.value_balance,
+                        &self.sighash,
+                    )
                     .map_err(|()| Error::BindingSig)?,
             );
         } else {
             self.mtx.binding_sig = None;
         }
 
-        let r = transparent_script_data_fromtx(&self.mtx, &self.transparent_inputs.inputs);
+        let r = transparent_script_data_fromtx(
+            &self.mtx,
+            &self.transparent_inputs.inputs,
+        );
         if r.is_err() {
             return Err(r.err().unwrap());
         }
@@ -800,8 +833,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         signatures: Vec<secp256k1::Signature>, //get from ledger
         consensus_branch_id: consensus::BranchId,
     ) -> Result<(), Error> {
-        self.transparent_inputs
-            .apply_signatures(signatures, &mut self.mtx, consensus_branch_id)
+        self.transparent_inputs.apply_signatures(
+            signatures,
+            &mut self.mtx,
+            consensus_branch_id,
+        )
     }
 
     pub fn add_signatures_spend(
@@ -839,7 +875,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         }
     }
 
-    pub fn finalize(mut self) -> Result<(Transaction, TransactionMetadata), Error> {
+    pub fn finalize(
+        mut self,
+    ) -> Result<(Transaction, TransactionMetadata), Error> {
         let tx = self.mtx.freeze().map_err(|_| Error::Finalization)?;
         let mut tx_meta = TransactionMetadata::new();
         tx_meta.spend_indices = (0..self.spends.len()).collect();
@@ -884,26 +922,28 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         txdata_copy.value_balance = self.mtx.value_balance;
         txdata_copy.shielded_spends = vec![];
         for info in self.mtx.shielded_spends.iter() {
-            let spend = zcash_primitives::transaction::components::SpendDescription {
-                cv: info.cv,
-                anchor: info.anchor,
-                nullifier: info.nullifier,
-                rk: PublicKey(info.rk.0),
-                zkproof: info.zkproof,
-                spend_auth_sig: info.spend_auth_sig,
-            };
+            let spend =
+                zcash_primitives::transaction::components::SpendDescription {
+                    cv: info.cv,
+                    anchor: info.anchor,
+                    nullifier: info.nullifier,
+                    rk: PublicKey(info.rk.0),
+                    zkproof: info.zkproof,
+                    spend_auth_sig: info.spend_auth_sig,
+                };
             txdata_copy.shielded_spends.push(spend);
         }
 
         for info in self.mtx.shielded_outputs.iter() {
-            let output = zcash_primitives::transaction::components::OutputDescription {
-                cv: info.cv,
-                cmu: info.cmu,
-                ephemeral_key: info.ephemeral_key,
-                enc_ciphertext: info.enc_ciphertext,
-                out_ciphertext: info.out_ciphertext,
-                zkproof: info.zkproof,
-            };
+            let output =
+                zcash_primitives::transaction::components::OutputDescription {
+                    cv: info.cv,
+                    cmu: info.cmu,
+                    ephemeral_key: info.ephemeral_key,
+                    enc_ciphertext: info.enc_ciphertext,
+                    out_ciphertext: info.out_ciphertext,
+                    zkproof: info.zkproof,
+                };
             txdata_copy.shielded_outputs.push(output);
         }
         txdata_copy.joinsplits = vec![];

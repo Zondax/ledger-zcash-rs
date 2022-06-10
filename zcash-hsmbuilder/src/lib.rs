@@ -4,7 +4,8 @@
     unused_mut,
     unused_variables,
     clippy::too_many_arguments,
-    clippy::result_unit_err
+    clippy::result_unit_err,
+    deprecated
 )]
 
 extern crate hex;
@@ -18,12 +19,12 @@ use group::{cofactor::CofactorCurveAffine, GroupEncoding};
 use jubjub::AffinePoint;
 use rand::RngCore;
 use rand_core::OsRng;
-use zcash_primitives::consensus;
 use zcash_primitives::consensus::TestNetwork;
+use zcash_primitives::consensus::{self, Parameters};
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::IncrementalWitness;
+use zcash_primitives::merkle_tree::{IncrementalWitness, MerklePath};
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
@@ -34,7 +35,8 @@ use crate::errors::Error;
 use crate::neon_bridge::*;
 use crate::sighashdata::TransactionDataSighash;
 use crate::txbuilder::{
-    NullifierInput, OutputDescription, SpendDescription, TransactionMetadata, TransparentScriptData,
+    NullifierInput, OutputDescription, SpendDescription, TransactionMetadata,
+    TransparentScriptData,
 };
 use crate::txprover::LocalTxProver;
 
@@ -91,7 +93,7 @@ pub struct InitData {
 }
 
 impl InitData {
-    pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_hsm_bytes(&self) -> Vec<u8> {
         let mut data = vec![
             self.t_in.len() as u8,
             self.t_out.len() as u8,
@@ -103,12 +105,12 @@ impl InitData {
             for p in info.path.iter() {
                 data.extend_from_slice(&p.to_le_bytes());
             }
-            info.address.write(&mut data)?;
+            info.address.write(&mut data).unwrap();
             data.extend_from_slice(&info.value.to_i64_le_bytes());
         }
 
         for info in self.t_out.iter() {
-            info.address.write(&mut data)?;
+            info.address.write(&mut data).unwrap();
             data.extend_from_slice(&info.value.to_i64_le_bytes());
         }
 
@@ -130,7 +132,8 @@ impl InitData {
                 data.extend_from_slice(&[0u8; 32]);
             }
         }
-        Ok(data)
+
+        data
     }
 }
 
@@ -162,12 +165,13 @@ impl HsmTxData {
     }
 }
 
-pub struct ZcashBuilder {
+#[deprecated(since = "0.3.0", note = "use the one in the ledger-zcash crate")]
+pub struct ZcashBuilder<P: Parameters> {
     num_transparent_inputs: usize,
     num_transparent_outputs: usize,
     num_spends: usize,
     num_outputs: usize,
-    builder: txbuilder::Builder<TestNetwork, OsRng>,
+    builder: txbuilder::Builder<P, OsRng>,
     branch: consensus::BranchId,
 }
 
@@ -204,8 +208,8 @@ pub struct SpendBuilderInfo {
     pub address: PaymentAddress,
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount,
-    #[serde(deserialize_with = "witness_deserialize")]
-    pub witness: IncrementalWitness<Node>,
+    #[serde(deserialize_with = "merkle_path_deserialize")]
+    pub witness: MerklePath<Node>,
     #[serde(deserialize_with = "rseed_deserialize")]
     pub rseed: Rseed,
 }
@@ -240,14 +244,21 @@ pub struct TransactionSignatures {
     pub spend_sigs: Vec<Signature>,
 }
 
-impl ZcashBuilder {
-    pub fn new(fee: u64) -> ZcashBuilder {
-        ZcashBuilder {
+impl ZcashBuilder<TestNetwork> {
+    pub fn new_test(fee: u64) -> Self {
+        Self::new(fee, TestNetwork)
+    }
+}
+
+impl<P: Parameters> ZcashBuilder<P> {
+    pub fn new(fee: u64, parameters: P) -> Self {
+        Self {
             num_transparent_inputs: 0,
             num_transparent_outputs: 0,
             num_spends: 0,
             num_outputs: 0,
-            builder: txbuilder::Builder::<TestNetwork, OsRng>::new_with_fee(0, fee),
+            builder: txbuilder::Builder::new_with_fee(parameters, 0, fee),
+
             branch: consensus::BranchId::Sapling,
         }
     }
@@ -280,7 +291,10 @@ impl ZcashBuilder {
         r
     }
 
-    pub fn add_sapling_spend(&mut self, info: SpendBuilderInfo) -> Result<(), Error> {
+    pub fn add_sapling_spend(
+        &mut self,
+        info: SpendBuilderInfo,
+    ) -> Result<(), Error> {
         let note = info
             .address
             .create_note(u64::from(info.value), info.rseed)
@@ -289,7 +303,7 @@ impl ZcashBuilder {
         let r = self.builder.add_sapling_spend(
             *info.address.diversifier(),
             note,
-            info.witness.path().unwrap(),
+            info.witness,
             info.alpha,
             info.proofkey,
             info.rcv,
@@ -300,7 +314,10 @@ impl ZcashBuilder {
         r
     }
 
-    pub fn add_sapling_output(&mut self, info: OutputBuilderInfo) -> Result<(), Error> {
+    pub fn add_sapling_output(
+        &mut self,
+        info: OutputBuilderInfo,
+    ) -> Result<(), Error> {
         if info.ovk.is_none() && info.hash_seed.is_none() {
             return Err(Error::InvalidOVKHashSeed);
         }
@@ -319,18 +336,25 @@ impl ZcashBuilder {
         r
     }
 
-    pub fn build(&mut self, prover: &mut LocalTxProver) -> Result<Vec<u8>, Error> {
-        let r = self.builder.build(self.branch, prover);
-        r.map(|v| v.to_hsm_bytes())?
+    pub fn build(
+        &mut self,
+        prover: &mut LocalTxProver,
+    ) -> Result<HsmTxData, Error> {
+        self.builder.build(self.branch, prover)
     }
 
-    pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {
+    pub fn add_signatures(
+        &mut self,
+        input: TransactionSignatures,
+    ) -> Result<(), Error> {
         self.builder
             .add_signatures_transparant(input.transparent_sigs, self.branch)?;
         self.builder.add_signatures_spend(input.spend_sigs)
     }
 
-    pub fn finalize(mut self) -> Result<(Transaction, TransactionMetadata), Error> {
+    pub fn finalize(
+        mut self,
+    ) -> Result<(Transaction, TransactionMetadata), Error> {
         self.builder.finalize()
     }
 

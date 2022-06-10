@@ -24,6 +24,9 @@ pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCode};
 pub use ledger_zondax_generic::LedgerAppError;
 
 /// Ledger app
+mod app;
 pub use app::*;
 
-mod app;
+/// Ergonomic transaction builder
+#[path = "./txbuilder.rs"]
+pub mod builder;
