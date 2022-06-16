@@ -14,6 +14,9 @@
 *  limitations under the License.
 ********************************************************************************/
 use serial_test::serial;
+use zcash_primitives::consensus;
+use zcash_primitives::consensus::TestNetwork;
+use zcash_primitives::primitives::Note;
 
 use std::path::Path;
 
@@ -61,6 +64,7 @@ async fn version() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_key_ivk() {
     init_logging();
 
@@ -79,6 +83,7 @@ async fn get_key_ivk() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_key_ovk() {
     init_logging();
 
@@ -195,6 +200,7 @@ async fn show_address_shielded() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_div_list() {
     init_logging();
     let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
@@ -212,6 +218,7 @@ async fn get_div_list() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_addr_with_div() {
     init_logging();
 
@@ -238,47 +245,48 @@ async fn get_addr_with_div() {
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_shieldedonly() {
     init_logging();
 
     let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
+    let addr = PaymentAddress::from_bytes(&[
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
+    ])
+    .unwrap();
+
+    let d = addr.diversifier();
+
     let spend1 = DataShieldedSpend {
         path: 1000,
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        value: Amount::from_u64(50000).unwrap(),
+        diversifier: *d,
+        note: Note {
+            value: 50000,
+            rseed: Rseed::AfterZip212([0u8; 32]),
+            g_d: d.g_d().unwrap(),
+            pk_d: *addr.pk_d(),
+        },
         witness: IncrementalWitness::read(
             &hex::decode(
                 "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
             )
             .unwrap()[..],
         )
+        .unwrap()
+        .path()
         .unwrap(),
-        rseed: Rseed::AfterZip212([0u8; 32]),
     };
 
+    let spend1_ = spend1.clone();
     let spend2 = DataShieldedSpend {
-        path: 1000,
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        value: Amount::from_u64(50000).unwrap(),
-        witness: IncrementalWitness::read(
-            &hex::decode(
-                "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
-            )
-            .unwrap()[..],
-        )
-        .unwrap(),
-        rseed: Rseed::AfterZip212([0xFF; 32]),
+        note: Note {
+            rseed: Rseed::AfterZip212([0xFF; 32]),
+            ..spend1_.note
+        },
+        ..spend1_
     };
 
     let output1 = DataShieldedOutput {
@@ -295,11 +303,10 @@ async fn do_full_transaction_shieldedonly() {
 
     let fee = 1000;
 
-    let txfee = Amount::from_u64(fee).unwrap();
-    let change_amount = spend1.value + spend2.value - output1.value - txfee;
+    let change_amount = spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
 
     let output2 = DataShieldedOutput {
-        value: change_amount,
+        value: Amount::from_u64(change_amount).unwrap(),
         address: PaymentAddress::from_bytes(&[
             198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
             249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
@@ -321,11 +328,14 @@ async fn do_full_transaction_shieldedonly() {
         vec_soutput: vec![output1, output2],
     };
 
-    let response = app.do_transaction(&input).await;
+    let response = app
+        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling)
+        .await;
     assert!(response.is_ok());
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_combinedshieldtransparent() {
     init_logging();
 
@@ -351,23 +361,32 @@ async fn do_full_transaction_combinedshieldtransparent() {
         ),
     };
 
+    let address = PaymentAddress::from_bytes(&[
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
+    ])
+    .unwrap();
+    let d = *address.diversifier();
+
     let spend1 = DataShieldedSpend {
         path: 1000,
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        value: Amount::from_u64(50000).unwrap(),
+        note: Note {
+            value: 50000,
+            g_d: d.g_d().unwrap(),
+            pk_d: *address.pk_d(),
+            rseed: Rseed::AfterZip212([0u8; 32]),
+        },
+        diversifier: d,
         witness: IncrementalWitness::read(
             &hex::decode(
                 "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
             )
             .unwrap()[..],
         )
+        .unwrap()
+        .path()
         .unwrap(),
-        rseed: Rseed::AfterZip212([0u8; 32]),
     };
 
     let output1 = DataShieldedOutput {
@@ -385,7 +404,10 @@ async fn do_full_transaction_combinedshieldtransparent() {
     let fee = 1000;
 
     let txfee = Amount::from_u64(fee).unwrap();
-    let change_amount = spend1.value + tin1.value - tout1.value - output1.value - txfee;
+    let change_amount = Amount::from_u64(spend1.note.value).unwrap() + tin1.value
+        - tout1.value
+        - output1.value
+        - txfee;
 
     let output2 = DataShieldedOutput {
         value: change_amount,
@@ -410,11 +432,14 @@ async fn do_full_transaction_combinedshieldtransparent() {
         vec_soutput: vec![output1, output2],
     };
 
-    let r = app.do_transaction(&input).await;
+    let r = app
+        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling)
+        .await;
     assert!(r.is_ok());
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_transparentonly() {
     init_logging();
 
@@ -473,52 +498,55 @@ async fn do_full_transaction_transparentonly() {
         vec_soutput: vec![],
     };
 
-    let r = app.do_transaction(&input).await;
+    let r = app
+        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling)
+        .await;
     assert!(r.is_ok());
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_tx_in_pieces() {
     init_logging();
 
     let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
+    let addr = PaymentAddress::from_bytes(&[
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
+    ])
+    .unwrap();
+
+    let d = addr.diversifier();
+
     let spend1 = DataShieldedSpend {
         path: 1000,
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        value: Amount::from_u64(50000).unwrap(),
+        diversifier: *d,
+        note: Note {
+            value: 50000,
+            rseed: Rseed::AfterZip212([0u8; 32]),
+            g_d: d.g_d().unwrap(),
+            pk_d: *addr.pk_d(),
+        },
         witness: IncrementalWitness::read(
             &hex::decode(
                 "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
             )
             .unwrap()[..],
         )
+        .unwrap()
+        .path()
         .unwrap(),
-        rseed: Rseed::AfterZip212([0u8; 32]),
     };
 
+    let spend1_ = spend1.clone();
     let spend2 = DataShieldedSpend {
-        path: 1000,
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        value: Amount::from_u64(50000).unwrap(),
-        witness: IncrementalWitness::read(
-            &hex::decode(
-                "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
-            )
-            .unwrap()[..],
-        )
-        .unwrap(),
-        rseed: Rseed::AfterZip212([0xFF; 32]),
+        note: Note {
+            rseed: Rseed::AfterZip212([0xFF; 32]),
+            ..spend1_.note
+        },
+        ..spend1_
     };
 
     let output1 = DataShieldedOutput {
@@ -535,11 +563,10 @@ async fn do_full_tx_in_pieces() {
 
     let fee = 1000;
 
-    let txfee = Amount::from_u64(fee).unwrap();
-    let change_amount = spend1.value + spend2.value - output1.value - txfee;
+    let change_amount = spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
 
     let output2 = DataShieldedOutput {
-        value: change_amount,
+        value: Amount::from_u64(change_amount).unwrap(),
         address: PaymentAddress::from_bytes(&[
             198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
             249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
@@ -561,15 +588,15 @@ async fn do_full_tx_in_pieces() {
         vec_soutput: vec![output1, output2],
     };
 
-    let init_blob = input.to_inittx_data().to_hsm_bytes().unwrap();
+    let init_blob = input.to_inittx_data();
 
     log::info!("sending inittx data to ledger");
-    log::info!("{}", hex::encode(&init_blob));
-    let r = app.init_tx(&init_blob).await;
+    log::info!("{}", hex::encode(&init_blob.to_hsm_bytes()));
+    let r = app.init_tx(init_blob).await;
 
     assert!(r.is_ok());
 
-    let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
+    let mut builder = zcash_hsmbuilder::ZcashBuilder::new_test(input.txfee);
     log::info!("adding transaction data to builder");
     for info in input.vec_tin.iter() {
         let r = builder.add_transparent_input(info.to_builder_data());
@@ -601,12 +628,11 @@ async fn do_full_tx_in_pieces() {
         Path::new("../params/sapling-output.params"),
     );
     log::info!("building the transaction");
-    let r = builder.build(&mut prover);
-    assert!(r.is_ok());
+    let ledgertxdata = builder.build(&mut prover);
+    assert!(ledgertxdata.is_ok());
     log::info!("building the transaction success");
-    let ledgertxblob = r.unwrap();
     log::info!("sending checkdata to ledger");
-    let req = app.checkandsign(ledgertxblob.as_slice()).await;
+    let req = app.checkandsign(ledgertxdata.unwrap()).await;
     assert!(req.is_ok());
     log::info!("checking and signing succeeded by ledger");
 

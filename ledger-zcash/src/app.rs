@@ -21,6 +21,7 @@
 
 extern crate hex;
 
+use std::convert::TryFrom;
 use std::path::Path;
 use std::str;
 
@@ -30,11 +31,12 @@ use ledger_zondax_generic::{
     App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
 
+use zcash_primitives::consensus::{self, Parameters};
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::IncrementalWitness;
-use zcash_primitives::primitives::Rseed;
+use zcash_primitives::merkle_tree::MerklePath;
+use zcash_primitives::primitives::{Diversifier, Note, Rseed};
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
@@ -43,14 +45,18 @@ use zcash_primitives::transaction::Transaction;
 use zx_bip44::BIP44Path;
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use zcash_hsmbuilder::txbuilder::TransactionMetadata;
 use zcash_hsmbuilder::{
-    HashSeed, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-    TinData, ToutData, TransactionSignatures, TransparentInputBuilderInfo,
-    TransparentOutputBuilderInfo,
+    data::{
+        HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
+        SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo,
+        TransparentOutputBuilderInfo,
+    },
+    txbuilder::TransactionMetadata,
 };
 
 use sha2::{Digest, Sha256};
+
+use crate::builder::{Builder, BuilderError};
 
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf1;
@@ -142,7 +148,16 @@ impl<E: Exchange> App for ZcashApp<E> {
     const CLA: u8 = CLA;
 }
 
-//use zcash_primitives::transaction::Transaction;
+impl<E> ZcashApp<E> {
+    /// Connect to the Ledger App
+    pub const fn new(apdu_transport: E) -> Self {
+        Self { apdu_transport }
+    }
+
+    const fn cla(&self) -> u8 {
+        CLA
+    }
+}
 
 ///Data needed to handle transparent input for sapling transaction
 ///Contains information needed for both ledger and builder
@@ -207,27 +222,33 @@ impl DataTransparentOutput {
 }
 
 ///Data needed to handle shielded spend for sapling transaction
+#[derive(Clone)]
 pub struct DataShieldedSpend {
     ///ZIP32 path (last non-constant value)
     pub path: u32,
-    ///Address of input spend note
-    pub address: PaymentAddress,
-    ///Value associated with note
-    pub value: Amount,
-    ///Witness for the spend note
-    pub witness: IncrementalWitness<Node>,
-    ///Used Rseed of the spend note (needed to compute nullifier)
+    /// Spend note
     /// Note: only Rseed::AfterZip202 supported
-    pub rseed: Rseed,
+    pub note: Note,
+    /// Diversifier of the address of the note
+    pub diversifier: Diversifier,
+    ///Witness for the spend note
+    pub witness: MerklePath<Node>,
 }
 
 impl DataShieldedSpend {
+    fn address(&self) -> PaymentAddress {
+        PaymentAddress::from_parts(self.diversifier, self.note.pk_d)
+            //if we have a note then pk_d is not the identity
+            .expect("pk_d not identity")
+    }
+
     ///Take the fields needed to send to ledger
     pub fn to_init_data(&self) -> ShieldedSpendData {
         ShieldedSpendData {
             path: self.path,
-            address: self.address.clone(),
-            value: self.value,
+            address: self.address(),
+            //if we have a note the amount is in range
+            value: Amount::from_u64(self.note.value).unwrap(),
         }
     }
 
@@ -236,14 +257,16 @@ impl DataShieldedSpend {
         &self,
         spendinfo: (ProofGenerationKey, jubjub::Fr, jubjub::Fr),
     ) -> SpendBuilderInfo {
+        let init_data = self.to_init_data();
+
         SpendBuilderInfo {
             proofkey: spendinfo.0,
             rcv: spendinfo.1,
             alpha: spendinfo.2,
-            address: self.address.clone(),
-            value: self.value,
+            address: init_data.address,
+            value: init_data.value,
             witness: self.witness.clone(),
-            rseed: self.rseed,
+            rseed: self.note.rseed,
         }
     }
 }
@@ -357,17 +380,6 @@ pub struct AddressShielded {
     pub address: String,
 }
 
-impl<E> ZcashApp<E> {
-    /// Connect to the Ledger App
-    pub const fn new(apdu_transport: E) -> Self {
-        ZcashApp { apdu_transport }
-    }
-
-    const fn cla(&self) -> u8 {
-        CLA
-    }
-}
-
 impl<E> ZcashApp<E>
 where
     E: Exchange + Send + Sync,
@@ -394,8 +406,13 @@ where
     ///Initiates a transaction in the ledger
     pub async fn init_tx(
         &self,
-        data: &[u8],
+        data: InitData,
     ) -> Result<[u8; SHA256_DIGEST_SIZE], LedgerAppError<E::Error>> {
+        let data = data.to_hsm_bytes();
+
+        log::info!("sending inittx data to ledger");
+        log::info!("{}", hex::encode(&data));
+
         let start_command = APDUCommand {
             cla: self.cla(),
             ins: INS_INIT_TX,
@@ -405,7 +422,7 @@ where
         };
 
         let response =
-            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, data).await?;
+            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
 
         log::info!("init ok");
 
@@ -442,7 +459,13 @@ where
     }
 
     ///Initiates a transaction in the ledger
-    pub async fn checkandsign(&self, data: &[u8]) -> Result<[u8; 32], LedgerAppError<E::Error>> {
+    pub async fn checkandsign(
+        &self,
+        data: HsmTxData,
+    ) -> Result<[u8; 32], LedgerAppError<E::Error>> {
+        //this is actually infallible
+        let data = data.to_hsm_bytes().unwrap();
+
         let start_command = APDUCommand {
             cla: Self::CLA,
             ins: INS_CHECKANDSIGN,
@@ -452,7 +475,7 @@ where
         };
 
         let response =
-            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, data).await?;
+            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
         log::info!("checkandsign ok");
 
         let response_data = response.data();
@@ -488,94 +511,37 @@ where
     }
 
     ///Does a complete transaction in the ledger
-    pub async fn do_transaction(
+    pub async fn do_transaction<P: Parameters + Send + Sync>(
         &self,
-        input: &DataInput,
+        input: DataInput,
+        parameters: P,
+        branch: consensus::BranchId,
     ) -> Result<(Transaction, TransactionMetadata), LedgerAppError<E::Error>> {
-        let init_blob: Vec<u8> = input
-            .to_inittx_data()
-            .to_hsm_bytes()
-            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-
-        log::info!("sending inittx data to ledger");
-        log::info!("{}", hex::encode(&init_blob));
-        self.init_tx(&init_blob).await?;
-
-        let mut builder = zcash_hsmbuilder::ZcashBuilder::new(input.txfee);
         log::info!("adding transaction data to builder");
-        for info in input.vec_tin.iter() {
-            builder
-                .add_transparent_input(info.to_builder_data())
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-        }
+        let fee = input.txfee;
 
-        for info in input.vec_tout.iter() {
-            builder
-                .add_transparent_output(info.to_builder_data())
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-        }
+        let builder: Builder = Builder::try_from(input)
+            .map_err(|e: BuilderError| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        for info in input.vec_sspend.iter() {
-            log::info!("getting spend data from ledger");
-            let spendinfo = self.get_spendinfo().await?;
-            builder
-                .add_sapling_spend(info.to_builder_data(spendinfo))
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-        }
-        log::info!("getting output data from ledger");
-        for info in input.vec_soutput.iter() {
-            let outputinfo = self.get_outputinfo().await?;
-            builder
-                .add_sapling_output(info.to_builder_data(outputinfo))
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-        }
-        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
+        let prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
-        let ledgertxblob = builder
-            .build(&mut prover)
-            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-        log::info!("building the transaction success");
-        log::info!("sending checkdata to ledger");
-        self.checkandsign(ledgertxblob.as_slice()).await?;
-        log::info!("checking and signing succeeded by ledger");
-
-        let mut transparent_sigs = Vec::new();
-        let mut spend_sigs = Vec::new();
-        log::info!("requesting signatures");
-
-        for _ in 0..input.vec_tin.len() {
-            let sig = self
-                .get_transparent_signature()
-                .await
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-            transparent_sigs.push(sig);
-        }
-
-        for _ in 0..input.vec_sspend.len() {
-            let sig = self
-                .get_spend_signature()
-                .await
-                .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-            spend_sigs.push(sig);
-        }
-        log::info!("all signatures retrieved");
-        let sigs = TransactionSignatures {
-            transparent_sigs,
-            spend_sigs,
-        };
-        log::info!("finalizing transaction");
-        builder
-            .add_signatures(sigs)
-            .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
-
         let txdata = builder
-            .finalize()
+            .build(
+                self,
+                parameters,
+                &prover,
+                fee,
+                &mut rand_core::OsRng,
+                0,
+                branch,
+            )
+            .await
             .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        log::info!("final transaction complete");
+        log::info!("transaction built and complete");
         Ok(txdata)
     }
 }

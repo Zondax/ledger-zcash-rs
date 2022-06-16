@@ -4,6 +4,8 @@ use std::path::Path;
 
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
+use ff::Field;
+use rand_core::OsRng;
 use zcash_primitives::{
     merkle_tree::MerklePath,
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
@@ -27,7 +29,7 @@ const SAPLING_SPEND_HASH: &str = "8270785a1a0d0bc77196f000ee6d221c9c9894f55307bd
 const SAPLING_OUTPUT_HASH: &str = "657e3d38dbb5cb5e7dd2970e8b03d69b4787dd907285b5a7f0790dcc8072f60bf593b32cc2d1c030e00ff5ae64bf84c5c3beb84ddc841d48264b4a171744d028";
 const SPROUT_HASH: &str = "e9b238411bd6c0ec4791e9d04245ec350c9c5744f5610dfcce4365d5ca49dfefd5054e371842b3f88fa1b9d7e8e075249b3ebabd167fa8b0f3161292d36c180a";
 
-/// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
+/// An implementation of [`HsmTxProver`] using Sapling Spend and Output parameters from
 /// locally-accessible paths.
 pub struct LocalTxProver {
     spend_params: Parameters<Bls12>,
@@ -127,7 +129,8 @@ impl LocalTxProver {
     }
 }
 
-pub trait TxProver {
+/// HSM compatible version of [`zcash_primitives::prover::TxProver`]
+pub trait HsmTxProver {
     /// Type for persisting any necessary context across multiple Sapling proofs.
     type SaplingProvingContext;
 
@@ -163,9 +166,10 @@ pub trait TxProver {
         rcv: jubjub::Fr,
     ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint);
 
-    /// Create the `bindingSig` for a Sapling transaction. All calls to
-    /// [`TxProver::spend_proof`] and [`TxProver::output_proof`] must be completed before
-    /// calling this function.
+    /// Create the `bindingSig` for a Sapling transaction.
+    ///
+    /// All calls to [`HsmTxProver::spend_proof`] and [`HsmTxProver::output_proof`]
+    /// must be completed before calling this function.
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -174,7 +178,7 @@ pub trait TxProver {
     ) -> Result<Signature, ()>;
 }
 
-impl TxProver for LocalTxProver {
+impl HsmTxProver for LocalTxProver {
     type SaplingProvingContext = SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
@@ -241,5 +245,66 @@ impl TxProver for LocalTxProver {
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(value_balance, sighash)
+    }
+}
+
+impl zcash_primitives::prover::TxProver for LocalTxProver {
+    type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
+
+    fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
+        HsmTxProver::new_sapling_proving_context(self)
+    }
+
+    fn spend_proof(
+        &self,
+        ctx: &mut Self::SaplingProvingContext,
+        proof_generation_key: ProofGenerationKey,
+        diversifier: Diversifier,
+        rseed: Rseed,
+        ar: jubjub::Fr,
+        value: u64,
+        anchor: bls12_381::Scalar,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
+        //default same as zcash's prover
+        let mut rng = OsRng;
+        let rcv = jubjub::Fr::random(&mut rng);
+
+        HsmTxProver::spend_proof(
+            self,
+            ctx,
+            proof_generation_key,
+            diversifier,
+            rseed,
+            ar,
+            value,
+            anchor,
+            merkle_path,
+            rcv,
+        )
+    }
+
+    fn output_proof(
+        &self,
+        ctx: &mut Self::SaplingProvingContext,
+        esk: jubjub::Fr,
+        payment_address: PaymentAddress,
+        rcm: jubjub::Fr,
+        value: u64,
+    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
+        //default same as zcash's prover
+        let mut rng = OsRng;
+        let rcv = jubjub::Fr::random(&mut rng);
+
+        HsmTxProver::output_proof(self, ctx, esk, payment_address, rcm, value, rcv)
+    }
+
+    fn binding_sig(
+        &self,
+        ctx: &mut Self::SaplingProvingContext,
+        value_balance: Amount,
+        sighash: &[u8; 32],
+    ) -> Result<Signature, ()> {
+        HsmTxProver::binding_sig(self, ctx, value_balance, sighash)
     }
 }

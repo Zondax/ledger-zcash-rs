@@ -7,7 +7,7 @@ use serde::{de::Error, Deserialize, Deserializer, Serializer};
 use zcash_primitives::keys::OutgoingViewingKey;
 use zcash_primitives::legacy::Script;
 use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::IncrementalWitness;
+use zcash_primitives::merkle_tree::{IncrementalWitness, MerklePath};
 use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
 use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
@@ -142,16 +142,18 @@ where
     }
 }
 
-pub fn witness_deserialize<'de, D>(deserializer: D) -> Result<IncrementalWitness<Node>, D::Error>
+pub fn merkle_path_deserialize<'de, D>(deserializer: D) -> Result<MerklePath<Node>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let str = String::deserialize(deserializer)?;
     let v = hex::decode(str).map_err(D::Error::custom)?;
-    let witness = IncrementalWitness::read(&v[..])
-        .map_err(D::Error::custom)
-        .unwrap();
-    Ok(witness)
+    let path = IncrementalWitness::read(&v[..])
+        .map_err(D::Error::custom)?
+        .path()
+        .ok_or_else(|| D::Error::custom("tree was empty"))?;
+
+    Ok(path)
 }
 
 pub fn rseed_deserialize<'de, D>(deserializer: D) -> Result<Rseed, D::Error>

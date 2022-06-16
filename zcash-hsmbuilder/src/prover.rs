@@ -50,6 +50,8 @@ fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
 }
 
 /// A context object for creating the Sapling components of a Zcash transaction.
+///
+/// HSM compatible version of [`zcash_proofs::sapling::SaplingProvingContext`]
 pub struct SaplingProvingContext {
     bsk: jubjub::Fr,
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
