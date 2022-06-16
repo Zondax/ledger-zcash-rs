@@ -35,8 +35,7 @@ use crate::errors::Error;
 use crate::neon_bridge::*;
 use crate::sighashdata::TransactionDataSighash;
 use crate::txbuilder::{
-    NullifierInput, OutputDescription, SpendDescription, TransactionMetadata,
-    TransparentScriptData,
+    NullifierInput, OutputDescription, SpendDescription, TransactionMetadata, TransparentScriptData,
 };
 use crate::txprover::LocalTxProver;
 
@@ -291,10 +290,7 @@ impl<P: Parameters> ZcashBuilder<P> {
         r
     }
 
-    pub fn add_sapling_spend(
-        &mut self,
-        info: SpendBuilderInfo,
-    ) -> Result<(), Error> {
+    pub fn add_sapling_spend(&mut self, info: SpendBuilderInfo) -> Result<(), Error> {
         let note = info
             .address
             .create_note(u64::from(info.value), info.rseed)
@@ -314,10 +310,7 @@ impl<P: Parameters> ZcashBuilder<P> {
         r
     }
 
-    pub fn add_sapling_output(
-        &mut self,
-        info: OutputBuilderInfo,
-    ) -> Result<(), Error> {
+    pub fn add_sapling_output(&mut self, info: OutputBuilderInfo) -> Result<(), Error> {
         if info.ovk.is_none() && info.hash_seed.is_none() {
             return Err(Error::InvalidOVKHashSeed);
         }
@@ -336,25 +329,17 @@ impl<P: Parameters> ZcashBuilder<P> {
         r
     }
 
-    pub fn build(
-        &mut self,
-        prover: &mut LocalTxProver,
-    ) -> Result<HsmTxData, Error> {
+    pub fn build(&mut self, prover: &mut LocalTxProver) -> Result<HsmTxData, Error> {
         self.builder.build(self.branch, prover)
     }
 
-    pub fn add_signatures(
-        &mut self,
-        input: TransactionSignatures,
-    ) -> Result<(), Error> {
+    pub fn add_signatures(&mut self, input: TransactionSignatures) -> Result<(), Error> {
         self.builder
             .add_signatures_transparant(input.transparent_sigs, self.branch)?;
         self.builder.add_signatures_spend(input.spend_sigs)
     }
 
-    pub fn finalize(
-        mut self,
-    ) -> Result<(Transaction, TransactionMetadata), Error> {
+    pub fn finalize(mut self) -> Result<(Transaction, TransactionMetadata), Error> {
         self.builder.finalize()
     }
 

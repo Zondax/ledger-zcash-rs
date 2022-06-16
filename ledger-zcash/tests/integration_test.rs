@@ -38,10 +38,9 @@ lazy_static::lazy_static! {
 }
 
 fn init_logging() {
-    let _ =
-        env_logger::Builder::from_env(Env::default().default_filter_or("info"))
-            .is_test(true)
-            .try_init();
+    let _ = env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+        .is_test(true)
+        .try_init();
 }
 
 #[tokio::test]
@@ -51,9 +50,7 @@ async fn version() {
 
     log::info!("Test");
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let resp = app.get_version().await.unwrap();
 
@@ -70,9 +67,7 @@ async fn version() {
 async fn get_key_ivk() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
 
@@ -90,9 +85,7 @@ async fn get_key_ivk() {
 async fn get_key_ovk() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
 
@@ -111,9 +104,7 @@ async fn get_key_ovk() {
 async fn address_unshielded() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
     let resp = app.get_address_unshielded(&path, false).await.unwrap();
@@ -136,9 +127,7 @@ async fn address_unshielded() {
 async fn address_shielded() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
     let resp = app.get_address_shielded(path, false).await.unwrap();
@@ -164,9 +153,7 @@ async fn address_shielded() {
 async fn show_address_unshielded() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
     let resp = app.get_address_unshielded(&path, true).await.unwrap();
@@ -189,9 +176,7 @@ async fn show_address_unshielded() {
 async fn show_address_shielded() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
     let resp = app.get_address_shielded(path, true).await.unwrap();
@@ -215,9 +200,7 @@ async fn show_address_shielded() {
 #[tokio::test]
 async fn get_div_list() {
     init_logging();
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let startindex: [u8; 11] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let path = 1000;
@@ -235,9 +218,7 @@ async fn get_div_list() {
 async fn get_addr_with_div() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let div: [u8; 11] = [198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220];
     let path = 1000;
@@ -263,14 +244,12 @@ async fn get_addr_with_div() {
 async fn do_full_transaction_shieldedonly() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let addr = PaymentAddress::from_bytes(&[
-        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-        191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170,
-        246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118, 103,
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
     ])
     .unwrap();
 
@@ -283,7 +262,7 @@ async fn do_full_transaction_shieldedonly() {
             value: 50000,
             rseed: Rseed::AfterZip212([0u8; 32]),
             g_d: d.g_d().unwrap(),
-            pk_d: addr.pk_d().clone()
+            pk_d: addr.pk_d().clone(),
         },
         witness: IncrementalWitness::read(
             &hex::decode(
@@ -291,7 +270,9 @@ async fn do_full_transaction_shieldedonly() {
             )
             .unwrap()[..],
         )
-        .unwrap().path().unwrap(),
+        .unwrap()
+        .path()
+        .unwrap(),
     };
 
     let spend1_ = spend1.clone();
@@ -306,9 +287,9 @@ async fn do_full_transaction_shieldedonly() {
     let output1 = DataShieldedOutput {
         value: Amount::from_u64(60000).unwrap(),
         address: PaymentAddress::from_bytes(&[
-            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13,
-            166, 78, 238, 11, 241, 194, 195, 146, 197, 241, 23, 58, 151, 155,
-            174, 184, 153, 102, 56, 8, 205, 34, 237, 141, 242, 117, 102, 204,
+            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
+            241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
+            237, 141, 242, 117, 102, 204,
         ])
         .unwrap(),
         ovk: None,
@@ -317,22 +298,19 @@ async fn do_full_transaction_shieldedonly() {
 
     let fee = 1000;
 
-    let change_amount =
-        spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
+    let change_amount = spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
 
     let output2 = DataShieldedOutput {
         value: Amount::from_u64(change_amount).unwrap(),
         address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-            191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237,
-            170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118,
-            103,
+            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
+            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
+            86, 114, 110, 162, 118, 103,
         ])
         .unwrap(),
         ovk: Some(OutgoingViewingKey([
-            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123,
-            103, 12, 240, 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236,
-            34, 95, 202,
+            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240, 117,
+            237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
         ])),
         memo: None,
     };
@@ -355,9 +333,7 @@ async fn do_full_transaction_shieldedonly() {
 async fn do_full_transaction_combinedshieldtransparent() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let tin1 = DataTransparentInput {
         path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
@@ -375,22 +351,21 @@ async fn do_full_transaction_combinedshieldtransparent() {
     let tout1 = DataTransparentOutput {
         value: Amount::from_u64(10000).unwrap(),
         script_pubkey: Script(
-            hex::decode("76a914000000000000000000000000000000000000000088ac")
-                .unwrap(),
+            hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
         ),
     };
 
     let address = PaymentAddress::from_bytes(&[
-        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-        191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170,
-        246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118, 103,
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
     ])
     .unwrap();
     let d = address.diversifier().clone();
 
     let spend1 = DataShieldedSpend {
         path: 1000,
-        note:  Note {
+        note: Note {
             value: 50000,
             g_d: d.g_d().unwrap(),
             pk_d: address.pk_d().clone(),
@@ -403,15 +378,17 @@ async fn do_full_transaction_combinedshieldtransparent() {
             )
             .unwrap()[..],
         )
-        .unwrap().path().unwrap(),
+        .unwrap()
+        .path()
+        .unwrap(),
     };
 
     let output1 = DataShieldedOutput {
         value: Amount::from_u64(60000).unwrap(),
         address: PaymentAddress::from_bytes(&[
-            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13,
-            166, 78, 238, 11, 241, 194, 195, 146, 197, 241, 23, 58, 151, 155,
-            174, 184, 153, 102, 56, 8, 205, 34, 237, 141, 242, 117, 102, 204,
+            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
+            241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
+            237, 141, 242, 117, 102, 204,
         ])
         .unwrap(),
         ovk: None,
@@ -421,8 +398,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
     let fee = 1000;
 
     let txfee = Amount::from_u64(fee).unwrap();
-    let change_amount = Amount::from_u64(spend1.note.value).unwrap()
-        + tin1.value
+    let change_amount = Amount::from_u64(spend1.note.value).unwrap() + tin1.value
         - tout1.value
         - output1.value
         - txfee;
@@ -430,16 +406,14 @@ async fn do_full_transaction_combinedshieldtransparent() {
     let output2 = DataShieldedOutput {
         value: change_amount,
         address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-            191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237,
-            170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118,
-            103,
+            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
+            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
+            86, 114, 110, 162, 118, 103,
         ])
         .unwrap(),
         ovk: Some(OutgoingViewingKey([
-            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123,
-            103, 12, 240, 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236,
-            34, 95, 202,
+            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240, 117,
+            237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
         ])),
         memo: None,
     };
@@ -462,9 +436,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
 async fn do_full_transaction_transparentonly() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let tin1 = DataTransparentInput {
         path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
@@ -495,8 +467,7 @@ async fn do_full_transaction_transparentonly() {
     let tout1 = DataTransparentOutput {
         value: Amount::from_u64(70000).unwrap(),
         script_pubkey: Script(
-            hex::decode("76a914000000000000000000000000000000000000000088ac")
-                .unwrap(),
+            hex::decode("76a914000000000000000000000000000000000000000088ac").unwrap(),
         ),
     };
 
@@ -508,8 +479,7 @@ async fn do_full_transaction_transparentonly() {
     let tout2 = DataTransparentOutput {
         value: change_amount,
         script_pubkey: Script(
-            hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac")
-                .unwrap(),
+            hex::decode("76a9140f71709c4b828df00f93d20aa2c34ae987195b3388ac").unwrap(),
         ),
     };
 
@@ -531,14 +501,12 @@ async fn do_full_transaction_transparentonly() {
 async fn do_full_tx_in_pieces() {
     init_logging();
 
-    let app = ZcashApp::new(
-        TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"),
-    );
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let addr = PaymentAddress::from_bytes(&[
-        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-        191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170,
-        246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118, 103,
+        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
+        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
+        110, 162, 118, 103,
     ])
     .unwrap();
 
@@ -551,7 +519,7 @@ async fn do_full_tx_in_pieces() {
             value: 50000,
             rseed: Rseed::AfterZip212([0u8; 32]),
             g_d: d.g_d().unwrap(),
-            pk_d: addr.pk_d().clone()
+            pk_d: addr.pk_d().clone(),
         },
         witness: IncrementalWitness::read(
             &hex::decode(
@@ -559,7 +527,9 @@ async fn do_full_tx_in_pieces() {
             )
             .unwrap()[..],
         )
-        .unwrap().path().unwrap(),
+        .unwrap()
+        .path()
+        .unwrap(),
     };
 
     let spend1_ = spend1.clone();
@@ -574,9 +544,9 @@ async fn do_full_tx_in_pieces() {
     let output1 = DataShieldedOutput {
         value: Amount::from_u64(60000).unwrap(),
         address: PaymentAddress::from_bytes(&[
-            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13,
-            166, 78, 238, 11, 241, 194, 195, 146, 197, 241, 23, 58, 151, 155,
-            174, 184, 153, 102, 56, 8, 205, 34, 237, 141, 242, 117, 102, 204,
+            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
+            241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
+            237, 141, 242, 117, 102, 204,
         ])
         .unwrap(),
         ovk: None,
@@ -585,22 +555,19 @@ async fn do_full_tx_in_pieces() {
 
     let fee = 1000;
 
-    let change_amount =
-        spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
+    let change_amount = spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
 
     let output2 = DataShieldedOutput {
         value: Amount::from_u64(change_amount).unwrap(),
         address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220,
-            191, 53, 54, 13, 249, 93, 202, 223, 140, 15, 162, 93, 203, 237,
-            170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114, 110, 162, 118,
-            103,
+            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
+            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
+            86, 114, 110, 162, 118, 103,
         ])
         .unwrap(),
         ovk: Some(OutgoingViewingKey([
-            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123,
-            103, 12, 240, 117, 237, 228, 173, 167, 105, 153, 122, 46, 210, 236,
-            34, 95, 202,
+            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240, 117,
+            237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
         ])),
         memo: None,
     };

@@ -47,9 +47,8 @@ use zx_bip44::BIP44Path;
 use byteorder::{LittleEndian, WriteBytesExt};
 use zcash_hsmbuilder::txbuilder::TransactionMetadata;
 use zcash_hsmbuilder::{
-    HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData,
-    ShieldedSpendData, SpendBuilderInfo, TinData, ToutData,
-    TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+    HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
+    SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
 };
 
 use sha2::{Digest, Sha256};
@@ -235,12 +234,9 @@ pub struct DataShieldedSpend {
 
 impl DataShieldedSpend {
     fn address(&self) -> PaymentAddress {
-        PaymentAddress::from_parts(
-            self.diversifier.clone(),
-            self.note.pk_d.clone(),
-        )
-        //if we have a note then pk_d is not the identity
-        .unwrap()
+        PaymentAddress::from_parts(self.diversifier.clone(), self.note.pk_d.clone())
+            //if we have a note then pk_d is not the identity
+            .unwrap()
     }
 
     ///Take the fields needed to send to ledger
@@ -291,11 +287,7 @@ impl DataShieldedOutput {
         ShieldedOutputData {
             address: self.address.clone(),
             value: self.value,
-            memo_type: self
-                .memo
-                .as_ref()
-                .map(|v| v.as_array()[0])
-                .unwrap_or(0xf6),
+            memo_type: self.memo.as_ref().map(|v| v.as_array()[0]).unwrap_or(0xf6),
             ovk: self.ovk,
         }
     }
@@ -341,20 +333,17 @@ impl DataInput {
             t_in.push(info.to_init_data());
         }
 
-        let mut t_out =
-            Vec::with_capacity(self.vec_tout.len() * T_OUT_INPUT_SIZE);
+        let mut t_out = Vec::with_capacity(self.vec_tout.len() * T_OUT_INPUT_SIZE);
         for info in self.vec_tout.iter() {
             t_out.push(info.to_init_data());
         }
 
-        let mut s_spend =
-            Vec::with_capacity(self.vec_sspend.len() * S_SPEND_INPUT_SIZE);
+        let mut s_spend = Vec::with_capacity(self.vec_sspend.len() * S_SPEND_INPUT_SIZE);
         for info in self.vec_sspend.iter() {
             s_spend.push(info.to_init_data());
         }
 
-        let mut s_output =
-            Vec::with_capacity(self.vec_soutput.len() * S_OUT_INPUT_SIZE);
+        let mut s_output = Vec::with_capacity(self.vec_soutput.len() * S_OUT_INPUT_SIZE);
         for info in self.vec_soutput.iter() {
             s_output.push(info.to_init_data());
         }
@@ -397,23 +386,17 @@ where
     Self: AppExt<E>,
 {
     /// Retrieve the app version
-    pub async fn get_version(
-        &self,
-    ) -> Result<Version, LedgerAppError<E::Error>> {
+    pub async fn get_version(&self) -> Result<Version, LedgerAppError<E::Error>> {
         <Self as AppExt<E>>::get_version(&self.apdu_transport).await
     }
 
     /// Retrieve the app info
-    pub async fn get_app_info(
-        &self,
-    ) -> Result<AppInfo, LedgerAppError<E::Error>> {
+    pub async fn get_app_info(&self) -> Result<AppInfo, LedgerAppError<E::Error>> {
         <Self as AppExt<E>>::get_app_info(&self.apdu_transport).await
     }
 
     /// Retrieve the device info
-    pub async fn get_device_info(
-        &self,
-    ) -> Result<DeviceInfo, LedgerAppError<E::Error>> {
+    pub async fn get_device_info(&self) -> Result<DeviceInfo, LedgerAppError<E::Error>> {
         <Self as AppExt<E>>::get_device_info(&self.apdu_transport).await
     }
 
@@ -435,12 +418,8 @@ where
             data: Vec::<u8>::new(),
         };
 
-        let response = <Self as AppExt<E>>::send_chunks(
-            &self.apdu_transport,
-            start_command,
-            &data,
-        )
-        .await?;
+        let response =
+            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
 
         log::info!("init ok");
 
@@ -450,12 +429,7 @@ where
                 return Err(LedgerAppError::NoSignature)
             }
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -497,12 +471,8 @@ where
             data: vec![],
         };
 
-        let response = <Self as AppExt<E>>::send_chunks(
-            &self.apdu_transport,
-            start_command,
-            &data,
-        )
-        .await?;
+        let response =
+            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
         log::info!("checkandsign ok");
 
         let response_data = response.data();
@@ -511,12 +481,7 @@ where
                 return Err(LedgerAppError::NoSignature)
             }
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -548,15 +513,12 @@ where
         input: DataInput,
         parameters: P,
         branch: consensus::BranchId,
-    ) -> Result<(Transaction, TransactionMetadata), LedgerAppError<E::Error>>
-    {
+    ) -> Result<(Transaction, TransactionMetadata), LedgerAppError<E::Error>> {
         log::info!("adding transaction data to builder");
         let fee = input.txfee;
 
-        let builder: Builder =
-            Builder::try_from(input).map_err(|e: BuilderError| {
-                LedgerAppError::AppSpecific(0, e.to_string())
-            })?;
+        let builder: Builder = Builder::try_from(input)
+            .map_err(|e: BuilderError| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
         let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
@@ -606,12 +568,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -650,9 +607,9 @@ where
     ) -> Result<AddressShielded, LedgerAppError<E::Error>> {
         let p1 = if require_confirmation { 1 } else { 0 };
         let mut path_data = Vec::with_capacity(4);
-        path_data.write_u32::<LittleEndian>(path).map_err(|_| {
-            LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path"))
-        })?;
+        path_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: Self::CLA,
@@ -665,12 +622,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -689,8 +641,7 @@ where
         let mut bytes = [0u8; PK_LEN_SAPLING];
         bytes.copy_from_slice(&response_data[..PK_LEN_SAPLING]);
 
-        let addr =
-            PaymentAddress::from_bytes(&bytes).ok_or(LedgerAppError::Crypto)?;
+        let addr = PaymentAddress::from_bytes(&bytes).ok_or(LedgerAppError::Crypto)?;
 
         let mut address = AddressShielded {
             public_key: addr,
@@ -711,9 +662,9 @@ where
         index: &[u8; DIV_INDEX_SIZE],
     ) -> Result<[u8; DIV_LIST_SIZE], LedgerAppError<E::Error>> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).map_err(|_| {
-            LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path"))
-        })?;
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         input_data.extend_from_slice(&index[..]);
         let command = APDUCommand {
@@ -727,12 +678,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -765,9 +711,9 @@ where
     ) -> Result<AddressShielded, LedgerAppError<E::Error>> {
         let p1 = if require_confirmation { 1 } else { 0 };
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).map_err(|_| {
-            LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path"))
-        })?;
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         input_data.extend_from_slice(&div[..]);
 
@@ -782,12 +728,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -807,8 +748,7 @@ where
 
         let mut addrb = [0u8; PK_LEN_SAPLING];
         addrb.copy_from_slice(&response_data[..PK_LEN_SAPLING]);
-        let addr =
-            PaymentAddress::from_bytes(&addrb).ok_or(LedgerAppError::Crypto)?;
+        let addr = PaymentAddress::from_bytes(&addrb).ok_or(LedgerAppError::Crypto)?;
 
         let mut address = AddressShielded {
             public_key: addr,
@@ -823,14 +763,11 @@ where
     }
 
     /// Retrieves a outgoing viewing key of a sapling key
-    pub async fn get_ovk(
-        &self,
-        path: u32,
-    ) -> Result<OutgoingViewingKey, LedgerAppError<E::Error>> {
+    pub async fn get_ovk(&self, path: u32) -> Result<OutgoingViewingKey, LedgerAppError<E::Error>> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).map_err(|_| {
-            LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path"))
-        })?;
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: Self::CLA,
@@ -843,12 +780,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -874,14 +806,11 @@ where
     }
 
     /// Retrieves a incoming viewing key of a sapling key
-    pub async fn get_ivk(
-        &self,
-        path: u32,
-    ) -> Result<jubjub::Fr, LedgerAppError<E::Error>> {
+    pub async fn get_ivk(&self, path: u32) -> Result<jubjub::Fr, LedgerAppError<E::Error>> {
         let mut input_data = Vec::with_capacity(4);
-        input_data.write_u32::<LittleEndian>(path).map_err(|_| {
-            LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path"))
-        })?;
+        input_data
+            .write_u32::<LittleEndian>(path)
+            .map_err(|_| LedgerAppError::AppSpecific(0, String::from("Invalid ZIP32-path")))?;
 
         let command = APDUCommand {
             cla: Self::CLA,
@@ -894,12 +823,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -930,10 +854,7 @@ where
     ///Get the information needed from ledger to make a shielded spend
     pub async fn get_spendinfo(
         &self,
-    ) -> Result<
-        (ProofGenerationKey, jubjub::Fr, jubjub::Fr),
-        LedgerAppError<E::Error>,
-    > {
+    ) -> Result<(ProofGenerationKey, jubjub::Fr, jubjub::Fr), LedgerAppError<E::Error>> {
         let command = APDUCommand {
             cla: Self::CLA,
             ins: INS_EXTRACT_SPEND,
@@ -945,12 +866,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -988,9 +904,7 @@ where
         };
 
         let mut rcvb = [0u8; RCV_SIZE];
-        rcvb.copy_from_slice(
-            &bytes[AK_SIZE + NSK_SIZE..AK_SIZE + NSK_SIZE + RCV_SIZE],
-        );
+        rcvb.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE..AK_SIZE + NSK_SIZE + RCV_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&rcvb);
         if f.is_none().into() {
@@ -1002,9 +916,7 @@ where
         let rcv = f.unwrap();
 
         let mut alphab = [0u8; ALPHA_SIZE];
-        alphab.copy_from_slice(
-            &bytes[AK_SIZE + NSK_SIZE + RCV_SIZE..SPENDDATA_SIZE],
-        );
+        alphab.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE + RCV_SIZE..SPENDDATA_SIZE]);
 
         let f = jubjub::Fr::from_bytes(&alphab);
         if f.is_none().into() {
@@ -1021,8 +933,7 @@ where
     ///Get the information needed from ledger to make a shielded output
     pub async fn get_outputinfo(
         &self,
-    ) -> Result<(jubjub::Fr, Rseed, Option<HashSeed>), LedgerAppError<E::Error>>
-    {
+    ) -> Result<(jubjub::Fr, Rseed, Option<HashSeed>), LedgerAppError<E::Error>> {
         let command = APDUCommand {
             cla: Self::CLA,
             ins: INS_EXTRACT_OUTPUT,
@@ -1034,12 +945,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -1077,9 +983,7 @@ where
         let hashseed = match bytes.len() {
             OUTPUTDATA_HASHSEED_SIZE => {
                 let mut seed = [0u8; HASHSEED_SIZE];
-                seed.copy_from_slice(
-                    &bytes[RCV_SIZE + RSEED_SIZE..OUTPUTDATA_HASHSEED_SIZE],
-                );
+                seed.copy_from_slice(&bytes[RCV_SIZE + RSEED_SIZE..OUTPUTDATA_HASHSEED_SIZE]);
                 Some(HashSeed(seed))
             }
             _ => None,
@@ -1102,12 +1006,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -1129,9 +1028,7 @@ where
     }
 
     ///Get a shielded spend signature from the ledger
-    pub async fn get_spend_signature(
-        &self,
-    ) -> Result<Signature, LedgerAppError<E::Error>> {
+    pub async fn get_spend_signature(&self) -> Result<Signature, LedgerAppError<E::Error>> {
         let command = APDUCommand {
             cla: Self::CLA,
             ins: INS_EXTRACT_SPENDSIG,
@@ -1143,12 +1040,7 @@ where
         let response = self.apdu_transport.exchange(&command).await?;
         match response.error_code() {
             Ok(APDUErrorCode::NoError) => {}
-            Ok(err) => {
-                return Err(LedgerAppError::AppSpecific(
-                    err as _,
-                    err.description(),
-                ))
-            }
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => {
                 return Err(LedgerAppError::AppSpecific(
                     err,
@@ -1165,7 +1057,6 @@ where
 
         log::info!("Received response {}", response_data.len());
 
-        Signature::read(&response_data[..SIG_SIZE])
-            .map_err(|_| LedgerAppError::InvalidSignature)
+        Signature::read(&response_data[..SIG_SIZE]).map_err(|_| LedgerAppError::InvalidSignature)
     }
 }

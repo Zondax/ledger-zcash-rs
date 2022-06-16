@@ -13,9 +13,7 @@ use zcash_primitives::redjubjub::Signature;
 use zcash_primitives::sapling::Node;
 use zcash_primitives::transaction::components::{Amount, OutPoint};
 
-pub fn outpoint_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<OutPoint, D::Error>
+pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -25,9 +23,7 @@ where
     OutPoint::read(&bytes[..]).map_err(D::Error::custom)
 }
 
-pub fn t_pk_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<secp256k1::PublicKey, D::Error>
+pub fn t_pk_deserialize<'de, D>(deserializer: D) -> Result<secp256k1::PublicKey, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -72,9 +68,7 @@ where
     }
 }
 
-pub fn pgk_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<ProofGenerationKey, D::Error>
+pub fn pgk_deserialize<'de, D>(deserializer: D) -> Result<ProofGenerationKey, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -99,9 +93,7 @@ where
     }
 }
 
-pub fn s_address_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<PaymentAddress, D::Error>
+pub fn s_address_deserialize<'de, D>(deserializer: D) -> Result<PaymentAddress, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -117,9 +109,7 @@ where
     }
 }
 
-pub fn ovk_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<Option<OutgoingViewingKey>, D::Error>
+pub fn ovk_deserialize<'de, D>(deserializer: D) -> Result<Option<OutgoingViewingKey>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -133,9 +123,7 @@ where
     }
 }
 
-pub fn memo_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<Option<Memo>, D::Error>
+pub fn memo_deserialize<'de, D>(deserializer: D) -> Result<Option<Memo>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -154,9 +142,7 @@ where
     }
 }
 
-pub fn merkle_path_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<MerklePath<Node>, D::Error>
+pub fn merkle_path_deserialize<'de, D>(deserializer: D) -> Result<MerklePath<Node>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -181,9 +167,7 @@ where
     Ok(rseed)
 }
 
-pub fn t_sig_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<Vec<secp256k1::Signature>, D::Error>
+pub fn t_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<secp256k1::Signature>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -201,17 +185,14 @@ where
             }
             let mut bytes = [0u8; 64];
             hex::decode_to_slice(item, &mut bytes).map_err(D::Error::custom)?;
-            let s = secp256k1::Signature::from_compact(&bytes)
-                .map_err(D::Error::custom)?;
+            let s = secp256k1::Signature::from_compact(&bytes).map_err(D::Error::custom)?;
             v.push(s);
         }
         Ok(v)
     }
 }
 
-pub fn s_sig_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<Vec<Signature>, D::Error>
+pub fn s_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<Signature>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -231,9 +212,7 @@ where
             hex::decode_to_slice(item, &mut bytes).map_err(D::Error::custom)?;
             let s = Signature::read(&bytes[..]);
             if s.is_err() {
-                return Err(D::Error::custom(
-                    "error deserializing to spend sig",
-                ));
+                return Err(D::Error::custom("error deserializing to spend sig"));
             }
             v.push(s.unwrap());
         }
@@ -241,9 +220,7 @@ where
     }
 }
 
-pub fn hashseed_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<Option<HashSeed>, D::Error>
+pub fn hashseed_deserialize<'de, D>(deserializer: D) -> Result<Option<HashSeed>, D::Error>
 where
     D: Deserializer<'de>,
 {

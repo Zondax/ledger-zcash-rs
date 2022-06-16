@@ -19,8 +19,8 @@ use zcash_primitives::{
 use zx_bip44::BIP44Path;
 
 use crate::{
-    DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput,
-    DataTransparentOutput, ZcashApp,
+    DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput, DataTransparentOutput,
+    ZcashApp,
 };
 
 /// Represents the possible tx fee values
@@ -102,17 +102,11 @@ impl TryFrom<DataInput> for Builder {
         }
 
         for zi in input.vec_sspend.into_iter() {
-            builder.add_sapling_spend(
-                zi.path,
-                zi.diversifier,
-                zi.note,
-                zi.witness,
-            )?;
+            builder.add_sapling_spend(zi.path, zi.diversifier, zi.note, zi.witness)?;
         }
 
         for zo in input.vec_soutput.into_iter() {
-            builder
-                .add_sapling_output(zo.ovk, zo.address, zo.value, zo.memo)?;
+            builder.add_sapling_output(zo.ovk, zo.address, zo.value, zo.memo)?;
         }
 
         Ok(builder)
@@ -154,9 +148,7 @@ pub enum BuilderError {
     #[error("error communicating with ledger during sapling spend retrieval")]
     UnableToRetrieveSpendInfo(usize),
     /// Error occured when retrieving transparent output data from ledger
-    #[error(
-        "error communicating with ledger during transparent output retrieval"
-    )]
+    #[error("error communicating with ledger during transparent output retrieval")]
     UnableToRetrieveOutputInfo(usize),
 
     /// Error occured while checking validity of spend
@@ -179,9 +171,7 @@ pub enum BuilderError {
     #[error("error communicating with ledger during transparent signature retrieval")]
     UnableToRetrieveTransparentSig(usize),
     /// Failed to retrieve sapling signature
-    #[error(
-        "error communicating with ledger during sapling signature retrieval"
-    )]
+    #[error("error communicating with ledger during sapling signature retrieval")]
     UnableToRetrieveSaplingSig(usize),
 
     /// Error occured when applying obtained transparent signatures
@@ -341,10 +331,7 @@ impl Builder {
     /// If there are any shielded inputs, always have at least two shielded outputs,
     /// padding with dummy outputs if necessary.
     /// See <https://github.com/zcash/zcash/issues/3615>
-    fn pad_sapling_outputs<R: RngCore>(
-        &mut self,
-        rng: &mut R,
-    ) -> Result<&mut Self, BuilderError> {
+    fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
         let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
         for _ in 0..dummies {
@@ -399,12 +386,7 @@ impl Builder {
         self.pad_sapling_outputs(rng)?;
 
         let mut hsmbuilder =
-            zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(
-                params,
-                height,
-                rng,
-                fee.into(),
-            );
+            zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.to_data_input(fee);
         app.init_tx(input.to_inittx_data())
