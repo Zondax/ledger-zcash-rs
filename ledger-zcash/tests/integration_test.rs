@@ -64,6 +64,7 @@ async fn version() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_key_ivk() {
     init_logging();
 
@@ -82,6 +83,7 @@ async fn get_key_ivk() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_key_ovk() {
     init_logging();
 
@@ -198,6 +200,7 @@ async fn show_address_shielded() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_div_list() {
     init_logging();
     let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
@@ -215,6 +218,7 @@ async fn get_div_list() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_addr_with_div() {
     init_logging();
 
@@ -241,6 +245,7 @@ async fn get_addr_with_div() {
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_shieldedonly() {
     init_logging();
 
@@ -330,6 +335,7 @@ async fn do_full_transaction_shieldedonly() {
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_combinedshieldtransparent() {
     init_logging();
 
@@ -433,6 +439,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_transaction_transparentonly() {
     init_logging();
 
@@ -498,6 +505,7 @@ async fn do_full_transaction_transparentonly() {
 }
 
 #[tokio::test]
+#[serial]
 async fn do_full_tx_in_pieces() {
     init_logging();
 
