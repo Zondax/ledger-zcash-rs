@@ -1,7 +1,7 @@
 [package]
 name = "ledger-zcash"
 description = "Library to integrate with the Ledger Zcash app"
-version = "0.3.0"
+version = "0.4.0"
 license = "Apache-2.0"
 authors = ["Zondax GmbH <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
@@ -32,7 +32,7 @@ ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
 
 #zcash
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.2" }
+zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.3" }
 zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
 rand_core = "0.5"
 arrayvec = "0.7.2"
