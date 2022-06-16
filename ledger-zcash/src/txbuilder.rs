@@ -219,7 +219,7 @@ impl Builder {
         };
 
         match coin.script_pubkey.address() {
-            Some(TransparentAddress::PublicKey(hash)) if &hash == &pkh[..] => {}
+            Some(TransparentAddress::PublicKey(hash)) if hash == pkh[..] => {}
             _ => return Err(BuilderError::InvalidUTXOAddress),
         }
 
@@ -347,7 +347,7 @@ impl Builder {
 }
 
 impl Builder {
-    fn to_data_input(self, fee: TxFee) -> DataInput {
+    fn into_data_input(self, fee: TxFee) -> DataInput {
         DataInput {
             txfee: fee.into(),
             vec_tin: self.transparent_inputs.into_iter().collect(),
@@ -365,6 +365,7 @@ impl Builder {
     /// targeting. An invalid `consensus_branch_id` will *not* result in an error from
     /// this function, and instead will generate a transaction that will be rejected by
     /// the network.
+    #[allow(clippy::too_many_arguments)]
     pub async fn build<P, E, TX, R>(
         mut self,
         app: &ZcashApp<E>,
@@ -388,7 +389,7 @@ impl Builder {
         let mut hsmbuilder =
             zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
-        let input = self.to_data_input(fee);
+        let input = self.into_data_input(fee);
         app.init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;

@@ -257,12 +257,12 @@ async fn do_full_transaction_shieldedonly() {
 
     let spend1 = DataShieldedSpend {
         path: 1000,
-        diversifier: d.clone(),
+        diversifier: *d,
         note: Note {
             value: 50000,
             rseed: Rseed::AfterZip212([0u8; 32]),
             g_d: d.g_d().unwrap(),
-            pk_d: addr.pk_d().clone(),
+            pk_d: *addr.pk_d(),
         },
         witness: IncrementalWitness::read(
             &hex::decode(
@@ -361,14 +361,14 @@ async fn do_full_transaction_combinedshieldtransparent() {
         110, 162, 118, 103,
     ])
     .unwrap();
-    let d = address.diversifier().clone();
+    let d = *address.diversifier();
 
     let spend1 = DataShieldedSpend {
         path: 1000,
         note: Note {
             value: 50000,
             g_d: d.g_d().unwrap(),
-            pk_d: address.pk_d().clone(),
+            pk_d: *address.pk_d(),
             rseed: Rseed::AfterZip212([0u8; 32]),
         },
         diversifier: d,
@@ -514,12 +514,12 @@ async fn do_full_tx_in_pieces() {
 
     let spend1 = DataShieldedSpend {
         path: 1000,
-        diversifier: d.clone(),
+        diversifier: *d,
         note: Note {
             value: 50000,
             rseed: Rseed::AfterZip212([0u8; 32]),
             g_d: d.g_d().unwrap(),
-            pk_d: addr.pk_d().clone(),
+            pk_d: *addr.pk_d(),
         },
         witness: IncrementalWitness::read(
             &hex::decode(

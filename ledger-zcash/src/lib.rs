@@ -15,7 +15,6 @@
 ********************************************************************************/
 //! Support library for Zcash Ledger Nano S/X apps
 
-#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used,))]
 #![deny(warnings, trivial_casts, trivial_numeric_casts)]
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]

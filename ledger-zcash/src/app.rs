@@ -234,9 +234,9 @@ pub struct DataShieldedSpend {
 
 impl DataShieldedSpend {
     fn address(&self) -> PaymentAddress {
-        PaymentAddress::from_parts(self.diversifier.clone(), self.note.pk_d.clone())
+        PaymentAddress::from_parts(self.diversifier, self.note.pk_d)
             //if we have a note then pk_d is not the identity
-            .unwrap()
+            .expect("pk_d not identity")
     }
 
     ///Take the fields needed to send to ledger
@@ -520,7 +520,7 @@ where
         let builder: Builder = Builder::try_from(input)
             .map_err(|e: BuilderError| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
+        let prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
@@ -529,7 +529,7 @@ where
             .build(
                 self,
                 parameters,
-                &mut prover,
+                &prover,
                 fee,
                 &mut rand_core::OsRng,
                 0,
