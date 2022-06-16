@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
-use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::TxProver};
+use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
 use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
@@ -378,7 +378,7 @@ impl Builder {
     ) -> Result<(Transaction, TransactionMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
-        TX: TxProver + Send + Sync,
+        TX: HsmTxProver + Send + Sync,
         P: Parameters + Send + Sync,
         E: ledger_transport::Exchange + Send + Sync,
         E::Error: std::error::Error,

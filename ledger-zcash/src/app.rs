@@ -45,10 +45,13 @@ use zcash_primitives::transaction::Transaction;
 use zx_bip44::BIP44Path;
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use zcash_hsmbuilder::txbuilder::TransactionMetadata;
 use zcash_hsmbuilder::{
-    HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
-    SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+    data::{
+        HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
+        SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo,
+        TransparentOutputBuilderInfo,
+    },
+    txbuilder::TransactionMetadata,
 };
 
 use sha2::{Digest, Sha256};
