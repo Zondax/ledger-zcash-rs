@@ -1,9 +1,6 @@
 use std::convert::TryFrom;
 
-use arrayvec::ArrayVec;
-use rand_core::{CryptoRng, RngCore};
-use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
     legacy::TransparentAddress,
@@ -16,6 +13,10 @@ use zcash_primitives::{
         Transaction,
     },
 };
+use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
+
+use arrayvec::ArrayVec;
+use rand_core::{CryptoRng, RngCore};
 use zx_bip44::BIP44Path;
 
 use crate::{

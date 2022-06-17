@@ -14,23 +14,24 @@
 *  limitations under the License.
 ********************************************************************************/
 use serial_test::serial;
-use zcash_primitives::consensus;
-use zcash_primitives::consensus::TestNetwork;
-use zcash_primitives::primitives::Note;
-
-use std::path::Path;
 
 use env_logger::Env;
-use zcash_primitives::keys::OutgoingViewingKey;
-use zcash_primitives::legacy::Script;
-use zcash_primitives::merkle_tree::IncrementalWitness;
-use zcash_primitives::primitives::PaymentAddress;
-use zcash_primitives::primitives::Rseed;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
+use std::path::Path;
 use zx_bip44::BIP44Path;
 
-use ledger_transport_hid::hidapi::HidApi;
-use ledger_transport_hid::TransportNativeHID;
+#[path = "../src/zcash.rs"]
+mod zcash;
+
+use zcash::primitives::{
+    consensus::{self, TestNetwork},
+    keys::OutgoingViewingKey,
+    legacy::Script,
+    merkle_tree::IncrementalWitness,
+    primitives::{Note, PaymentAddress, Rseed},
+    transaction::components::{Amount, OutPoint},
+};
+
+use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zcash::*;
 
 lazy_static::lazy_static! {

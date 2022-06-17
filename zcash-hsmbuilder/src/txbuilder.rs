@@ -4,10 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use crypto_api_chachapoly::ChachaPolyIetf;
-use group::GroupEncoding;
-use rand::{rngs::OsRng, CryptoRng, RngCore};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     consensus,
     constants::SPENDING_KEY_GENERATOR,
     keys::OutgoingViewingKey,
@@ -24,6 +21,9 @@ use zcash_primitives::{
     },
     util::generate_random_rseed,
 };
+use crypto_api_chachapoly::ChachaPolyIetf;
+use group::GroupEncoding;
+use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
     data::{sighashdata::signature_hash_input_data, HashSeed, HsmTxData},
@@ -43,7 +43,7 @@ const MIN_SHIELDED_OUTPUTS: usize = 2;
 /// Generates a [`Transaction`] from its inputs and outputs.
 ///
 /// This is a rather low level builder, and is a HSM-compatible version
-/// of [`zcash_primitives::transaction::builder::Builder`].
+/// of [`crate::zcash::primitives::transaction::builder::Builder`].
 pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng> {
     rng: R,
     height: u32,
@@ -303,7 +303,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                     .map_err(|()| Error::SpendProof)?;
 
                 self.mtx.shielded_spends.push(
-                    zcash_primitives::transaction::components::SpendDescription {
+                    crate::zcash::primitives::transaction::components::SpendDescription {
                         cv,
                         anchor,
                         nullifier,
@@ -462,7 +462,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         txdata_copy.value_balance = self.mtx.value_balance;
         txdata_copy.shielded_spends = vec![];
         for info in self.mtx.shielded_spends.iter() {
-            let spend = zcash_primitives::transaction::components::SpendDescription {
+            let spend = crate::zcash::primitives::transaction::components::SpendDescription {
                 cv: info.cv,
                 anchor: info.anchor,
                 nullifier: info.nullifier,
@@ -474,7 +474,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         }
 
         for info in self.mtx.shielded_outputs.iter() {
-            let output = zcash_primitives::transaction::components::OutputDescription {
+            let output = crate::zcash::primitives::transaction::components::OutputDescription {
                 cv: info.cv,
                 cmu: info.cmu,
                 ephemeral_key: info.ephemeral_key,
@@ -502,7 +502,7 @@ mod tests {
     use std::marker::PhantomData;
 
     use super::{Builder, Error};
-    use zcash_primitives::{
+    use crate::zcash::primitives::{
         *,
         consensus::*,
         consensus::TestNetwork,
@@ -518,10 +518,10 @@ mod tests {
             signature_hash_data, Transaction, TransactionData, SIGHASH_ALL,
         },
     };
-    use zcash_primitives::primitives::ProofGenerationKey;
+    use crate::zcash::primitives::primitives::ProofGenerationKey;
     use jubjub::{SubgroupPoint, ExtendedPoint};
-    use zcash_primitives::keys::OutgoingViewingKey;
-    use zcash_primitives::redjubjub::PublicKey;
+    use crate::zcash::primitives::keys::OutgoingViewingKey;
+    use crate::zcash::primitives::redjubjub::PublicKey;
 
     #[test]
     fn fails_on_negative_output() {

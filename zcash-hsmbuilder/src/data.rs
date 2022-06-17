@@ -7,8 +7,7 @@ use neon_bridge::*;
 pub mod sighashdata;
 use sighashdata::TransactionDataSighash;
 
-use serde::{Deserialize, Serialize};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     keys::OutgoingViewingKey,
     legacy::Script,
     memo::MemoBytes as Memo,
@@ -18,6 +17,7 @@ use zcash_primitives::{
     sapling::Node,
     transaction::components::{Amount, OutPoint},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::Error,

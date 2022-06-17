@@ -15,6 +15,11 @@ autobenches = false
 [lib]
 name = "ledger_zcash"
 
+[features]
+default = ["normal-zcash"]
+normal-zcash = ["zcash_primitives", "zcash-hsmbuilder/normal-zcash"]
+zecwallet-compat = ["zecw_primitives", "zcash-hsmbuilder/zecwallet-compat"]
+
 [dependencies]
 byteorder = "1.4.3"
 lazy_static = "1.4.0"
@@ -27,17 +32,20 @@ jubjub = { version = "0.5.1", default-features = false }
 secp256k1 = { version = "0.20", default-features = false }
 group = "0.8.0"
 sha2 = "0.9"
+rand_core = "0.5"
+arrayvec = "0.7.2"
+ripemd = "0.1.1"
+ff = "0.8"
 
 ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
 
 #zcash
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", version = "0.3" }
-zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
-rand_core = "0.5"
-arrayvec = "0.7.2"
-ripemd = "0.1.1"
-ff = "0.8"
+zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false, version = "0.3" }
+zcash_primitives = { version = "0.5", features = ["transparent-inputs"], optional = true }
+
+#zecwallet-compat
+zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "adeb3ec4ad15480482bc2962bc9fe453814db9ee", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 
 [dev-dependencies]
 futures = "0.3.21"

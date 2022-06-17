@@ -19,32 +19,27 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-extern crate hex;
+use std::{convert::TryFrom, path::Path, str};
 
-use std::convert::TryFrom;
-use std::path::Path;
-use std::str;
-
-use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
 use ledger_zondax_generic::{
     App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
 
-use zcash_primitives::consensus::{self, Parameters};
-use zcash_primitives::keys::OutgoingViewingKey;
-use zcash_primitives::legacy::Script;
-use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::MerklePath;
-use zcash_primitives::primitives::{Diversifier, Note, Rseed};
-use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
-use zcash_primitives::redjubjub::Signature;
-use zcash_primitives::sapling::Node;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
-use zcash_primitives::transaction::Transaction;
-use zx_bip44::BIP44Path;
-
-use byteorder::{LittleEndian, WriteBytesExt};
+use crate::zcash::primitives::{
+    consensus::{self, Parameters},
+    keys::OutgoingViewingKey,
+    legacy::Script,
+    memo::MemoBytes as Memo,
+    merkle_tree::MerklePath,
+    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
+    redjubjub::Signature,
+    sapling::Node,
+    transaction::{
+        components::{Amount, OutPoint},
+        Transaction,
+    },
+};
 use zcash_hsmbuilder::{
     data::{
         HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
@@ -54,7 +49,10 @@ use zcash_hsmbuilder::{
     txbuilder::TransactionMetadata,
 };
 
+use byteorder::{LittleEndian, WriteBytesExt};
+use group::GroupEncoding;
 use sha2::{Digest, Sha256};
+use zx_bip44::BIP44Path;
 
 use crate::builder::{Builder, BuilderError};
 

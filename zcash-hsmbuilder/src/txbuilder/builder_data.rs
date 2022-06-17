@@ -3,11 +3,7 @@
 
 use std::io::{self, Write};
 
-use crypto_api_chachapoly::ChachaPolyIetf;
-use group::GroupEncoding;
-use rand::{CryptoRng, RngCore};
-use sha2::{Digest, Sha256};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     consensus,
     keys::OutgoingViewingKey,
     legacy::{Script, TransparentAddress},
@@ -21,6 +17,10 @@ use zcash_primitives::{
         signature_hash_data, SignableInput, TransactionData, SIGHASH_ALL,
     },
 };
+use crypto_api_chachapoly::ChachaPolyIetf;
+use group::GroupEncoding;
+use rand::{CryptoRng, RngCore};
+use sha2::{Digest, Sha256};
 
 use crate::{data::HashSeed, errors::Error, txprover::HsmTxProver};
 
@@ -95,7 +95,7 @@ impl SaplingOutput {
         prover: &P,
         ctx: &mut P::SaplingProvingContext,
         rng: &mut R,
-    ) -> zcash_primitives::transaction::components::OutputDescription {
+    ) -> crate::zcash::primitives::transaction::components::OutputDescription {
         let mut encryptor = SaplingNoteEncryption::new(
             self.ovk,
             self.note.clone(),
@@ -144,7 +144,7 @@ impl SaplingOutput {
 
         let ephemeral_key = (*encryptor.epk()).into();
 
-        zcash_primitives::transaction::components::OutputDescription {
+        crate::zcash::primitives::transaction::components::OutputDescription {
             cv,
             cmu,
             ephemeral_key,
@@ -324,7 +324,7 @@ pub struct SpendDescription {
 
 impl SpendDescription {
     pub fn from(
-        info: &zcash_primitives::transaction::components::SpendDescription,
+        info: &crate::zcash::primitives::transaction::components::SpendDescription,
     ) -> SpendDescription {
         SpendDescription {
             cv: info.cv.to_bytes(),
@@ -354,8 +354,10 @@ pub struct OutputDescription {
     pub zkproof: [u8; GROTH_PROOF_SIZE],
 }
 
-impl From<&zcash_primitives::transaction::components::OutputDescription> for OutputDescription {
-    fn from(from: &zcash_primitives::transaction::components::OutputDescription) -> Self {
+impl From<&crate::zcash::primitives::transaction::components::OutputDescription>
+    for OutputDescription
+{
+    fn from(from: &crate::zcash::primitives::transaction::components::OutputDescription) -> Self {
         Self {
             cv: from.cv.to_bytes(),
             cmu: from.cmu.to_bytes(),
@@ -380,7 +382,7 @@ impl OutputDescription {
 
 /// Converts a zcash_primitives' SpendDescription to the HSM-compatible format
 pub fn spend_data_hms_fromtx(
-    input: &[zcash_primitives::transaction::components::SpendDescription],
+    input: &[crate::zcash::primitives::transaction::components::SpendDescription],
 ) -> Vec<SpendDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
@@ -392,7 +394,7 @@ pub fn spend_data_hms_fromtx(
 
 /// Converts a zcash_primitives' OutputDescription to the HSM-compatible format
 pub fn output_data_hsm_fromtx(
-    input: &[zcash_primitives::transaction::components::OutputDescription],
+    input: &[crate::zcash::primitives::transaction::components::OutputDescription],
 ) -> Vec<OutputDescription> {
     let mut data = Vec::new();
     for info in input.iter() {

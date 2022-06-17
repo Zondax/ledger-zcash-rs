@@ -1,10 +1,27 @@
 use std::ops::{AddAssign, Neg};
 
+use crate::zcash::{
+    primitives::{
+        constants::{
+            SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+            VALUE_COMMITMENT_VALUE_GENERATOR,
+        },
+        merkle_tree::MerklePath,
+        primitives::{
+            Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
+        },
+        prover::TxProver,
+        redjubjub::{PrivateKey, PublicKey, Signature},
+        sapling::Node,
+        transaction::components::Amount,
+    },
+    proofs::circuit::sapling::{Output, Spend},
+};
+
 use bellman::{
     gadgets::multipack,
     groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
 };
-//use pairing::bls12_381::Bls12;
 use bls12_381::Bls12;
 use ff::Field;
 use group::Curve;
@@ -12,19 +29,6 @@ use group::GroupEncoding;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-use zcash_primitives::prover::TxProver;
-use zcash_primitives::{
-    constants::{
-        SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
-        VALUE_COMMITMENT_VALUE_GENERATOR,
-    },
-    merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment},
-    redjubjub::{PrivateKey, PublicKey, Signature},
-    sapling::Node,
-    transaction::components::Amount,
-};
-use zcash_proofs::circuit::sapling::{Output, Spend};
 
 fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is

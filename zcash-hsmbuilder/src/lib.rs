@@ -13,7 +13,7 @@ use group::{cofactor::CofactorCurveAffine, GroupEncoding};
 use jubjub::AffinePoint;
 use rand::RngCore;
 use rand_core::OsRng;
-use zcash_primitives::{
+use zcash::primitives::{
     consensus::{self, Parameters, TestNetwork},
     keys::OutgoingViewingKey,
     legacy::Script,
@@ -27,6 +27,8 @@ use zcash_primitives::{
         Transaction,
     },
 };
+
+pub(crate) mod zcash;
 
 use data::*;
 use errors::Error;

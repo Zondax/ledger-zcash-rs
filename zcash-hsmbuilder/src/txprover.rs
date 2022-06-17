@@ -2,23 +2,24 @@
 
 use std::path::Path;
 
+use crate::{
+    prover::SaplingProvingContext,
+    txbuilder::{OutputDescription, SpendDescription},
+    zcash::{
+        primitives::{
+            merkle_tree::MerklePath,
+            primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
+            redjubjub::{PublicKey, Signature},
+            sapling::Node,
+            transaction::components::{Amount, GROTH_PROOF_SIZE},
+        },
+        proofs::{default_params_folder, load_parameters, ZcashParameters},
+    },
+};
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use ff::Field;
 use rand_core::OsRng;
-use zcash_primitives::{
-    merkle_tree::MerklePath,
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::{PublicKey, Signature},
-    sapling::Node,
-    transaction::components::{Amount, GROTH_PROOF_SIZE},
-};
-use zcash_proofs::{default_params_folder, load_parameters, ZcashParameters};
-
-use crate::{
-    prover::SaplingProvingContext,
-    txbuilder::{OutputDescription, SpendDescription},
-};
 
 // Circuit names
 const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
@@ -79,7 +80,7 @@ impl LocalTxProver {
     /// # Examples
     ///
     /// ```
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use zcash_hsmbuilder::LocalTxProver;
     ///
     /// match LocalTxProver::with_default_location() {
     ///     Some(tx_prover) => (),
@@ -129,7 +130,7 @@ impl LocalTxProver {
     }
 }
 
-/// HSM compatible version of [`zcash_primitives::prover::TxProver`]
+/// HSM compatible version of [`crate::zcash::primitives::prover::TxProver`]
 pub trait HsmTxProver {
     /// Type for persisting any necessary context across multiple Sapling proofs.
     type SaplingProvingContext;
@@ -248,7 +249,7 @@ impl HsmTxProver for LocalTxProver {
     }
 }
 
-impl zcash_primitives::prover::TxProver for LocalTxProver {
+impl crate::zcash::primitives::prover::TxProver for LocalTxProver {
     type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
@@ -266,7 +267,7 @@ impl zcash_primitives::prover::TxProver for LocalTxProver {
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
-        //default same as zcash's prover
+        //default, same as zcash's prover
         let mut rng = OsRng;
         let rcv = jubjub::Fr::random(&mut rng);
 
@@ -292,7 +293,7 @@ impl zcash_primitives::prover::TxProver for LocalTxProver {
         rcm: jubjub::Fr,
         value: u64,
     ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
-        //default same as zcash's prover
+        //default, same as zcash's prover
         let mut rng = OsRng;
         let rcv = jubjub::Fr::random(&mut rng);
 

@@ -1,8 +1,8 @@
+use crate::zcash::primitives::transaction::TransactionData;
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
-use zcash_primitives::transaction::TransactionData;
 
 const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";
 const ZCASH_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSequencHash";
@@ -82,7 +82,7 @@ enum SigHashVersion {
 
 impl SigHashVersion {
     fn from_tx(tx: &TransactionData) -> Self {
-        use zcash_primitives::transaction::TxVersion;
+        use crate::zcash::primitives::transaction::TxVersion;
 
         match tx.version {
             TxVersion::Sprout(_) => SigHashVersion::Sprout,
