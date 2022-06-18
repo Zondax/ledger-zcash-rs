@@ -283,6 +283,32 @@ impl TransactionMetadata {
     }
 }
 
+impl From<crate::zcash::primitives::transaction::builder::TransactionMetadata>
+    for TransactionMetadata
+{
+    fn from(txmeta: crate::zcash::primitives::transaction::builder::TransactionMetadata) -> Self {
+        let mut spends = vec![];
+        let mut outputs = vec![];
+
+        let mut i = 0;
+        while let Some(ix) = txmeta.spend_index(i) {
+            spends.push(ix);
+            i += 1;
+        }
+
+        i = 0;
+        while let Some(ix) = txmeta.output_index(i) {
+            outputs.push(ix);
+            i += 1;
+        }
+
+        Self {
+            spend_indices: spends,
+            output_indices: outputs,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct NullifierInput {
     pub rcm_old: [u8; 32],

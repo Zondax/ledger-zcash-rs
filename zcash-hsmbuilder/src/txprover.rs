@@ -13,7 +13,7 @@ use crate::{
             sapling::Node,
             transaction::components::{Amount, GROTH_PROOF_SIZE},
         },
-        proofs::{default_params_folder, load_parameters, ZcashParameters},
+        proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters},
     },
 };
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
@@ -45,7 +45,7 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use zcash_hsmbuilder::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
     ///     Path::new("/path/to/sapling-spend.params"),
@@ -68,6 +68,31 @@ impl LocalTxProver {
             spend_params,
             spend_vk,
             output_params,
+        }
+    }
+
+    /// Creates a `LocalTxProver` using parameters specified as byte arrays.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// use std::path::Path;
+    /// use zcash_hsmbuilder::LocalTxProver;
+    ///
+    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8]);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the byte arrays do not contain valid parameters with
+    /// the expected hashes.
+    pub fn from_bytes(spend_param_bytes: &[u8], output_param_bytes: &[u8]) -> Self {
+        let p = parse_parameters(spend_param_bytes, output_param_bytes, None);
+
+        LocalTxProver {
+            spend_params: p.spend_params,
+            spend_vk: p.spend_vk,
+            output_params: p.output_params,
         }
     }
 
