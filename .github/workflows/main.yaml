@@ -38,7 +38,7 @@ jobs:
       - name: clippy
         run: |
           cargo clippy --version
-          cargo clippy --all-features
+          cargo clippy --features "bundled-prover","local-prover"
 
   tests:
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
           sharedKey: ${{ github.run_id }}-${{ github.run_attempt }}
 
       - run: sudo apt-get install -y libudev-dev libusb-1.0.0-dev
-      - name: test --all-features
+      - name: test
         run: |
           #with --lib we only test the unit tests
-          cargo test --lib --all-features
+          cargo test --lib --features "bundled-prover","local-prover"

@@ -144,8 +144,12 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "bundled-prover")))]
     pub fn bundled() -> Self {
         let (spend_buf, output_buf) = wagyu_zcash_parameters::load_sapling_parameters();
-        let (spend_params, spend_vk, output_params, _, _) =
-            parse_parameters(&spend_buf[..], &output_buf[..], None);
+        let ZcashParameters {
+            spend_params,
+            spend_vk,
+            output_params,
+            ..
+        } = parse_parameters(&spend_buf[..], &output_buf[..], None);
 
         LocalTxProver {
             spend_params,
