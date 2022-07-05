@@ -60,7 +60,7 @@ async fn version() {
     println!("patch {}", resp.patch);
     println!("locked {}", resp.locked);
 
-    assert_eq!(resp.major, 2);
+    assert_eq!(resp.major, 3);
 }
 
 #[tokio::test]
