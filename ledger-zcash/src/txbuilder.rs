@@ -73,6 +73,7 @@ pub struct Builder {
     transaprent_outputs: ArrayVec<DataTransparentOutput, 5>,
     sapling_spends: ArrayVec<DataShieldedSpend, 5>,
     sapling_outputs: ArrayVec<DataShieldedOutput, 5>,
+    change_address: Option<(OutgoingViewingKey, PaymentAddress)>,
 }
 
 impl TryFrom<DataInput> for Builder {
@@ -344,6 +345,14 @@ impl Builder {
             )?;
         }
         Ok(self)
+    }
+
+    /// Sets the Sapling address to which any change will be sent.
+    ///
+    /// By default, change is sent to the Sapling address corresponding to the first note
+    /// being spent (i.e. the first call to [`Builder::add_sapling_spend`]).
+    pub fn send_change_to(&mut self, ovk: OutgoingViewingKey, to: PaymentAddress) {
+        self.change_address = Some((ovk, to))
     }
 }
 
