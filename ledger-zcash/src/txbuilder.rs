@@ -17,6 +17,7 @@ use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
+use tokio::sync::mpsc;
 use zx_bip44::BIP44Path;
 
 use crate::{
@@ -385,6 +386,7 @@ impl Builder {
         rng: &mut R,
         height: u32,
         branch: consensus::BranchId,
+        progress_notifier: Option<mpsc::Sender<usize>>,
     ) -> Result<(Transaction, TransactionMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
@@ -483,7 +485,7 @@ impl Builder {
 
         // building finished, time to have the ledger sign everything
         let ledger_data = hsmbuilder
-            .build(branch, prover)
+            .build_with_progress_notifier(branch, prover, progress_notifier)
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
         let _signed_hash = app

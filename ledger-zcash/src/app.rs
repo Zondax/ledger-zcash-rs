@@ -526,6 +526,10 @@ where
             Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
+
+        // Set up a channel to recieve updates on the progress of building the transaction.
+        let (tx, _) = tokio::sync::mpsc::channel(10);
+
         let txdata = builder
             .build(
                 self,
@@ -535,6 +539,7 @@ where
                 &mut rand_core::OsRng,
                 0,
                 branch,
+                Some(tx),
             )
             .await
             .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;

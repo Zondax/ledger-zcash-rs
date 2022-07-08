@@ -3,6 +3,8 @@ use std::{
     io::{self, Write},
     marker::PhantomData,
 };
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
 
 use crate::zcash::primitives::{
     consensus,
@@ -229,10 +231,18 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         consensus_branch_id: consensus::BranchId,
         prover: &impl HsmTxProver,
     ) -> Result<HsmTxData, Error> {
+        self.build_with_progress_notifier(consensus_branch_id, prover, None)
+    }
+
+    pub fn build_with_progress_notifier(
+        &mut self,
+        consensus_branch_id: consensus::BranchId,
+        prover: &impl HsmTxProver,
+        progress_notifier: Option<mpsc::Sender<usize>>,
+    ) -> Result<HsmTxData, Error> {
         //
         // Consistency checks
         //
-
         // Valid change
         let change = self.mtx.value_balance - self.fee + self.transparent_inputs.value_sum()
             - self
@@ -276,6 +286,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Record if we'll need a binding signature
         let binding_sig_needed = !spends.is_empty() || !outputs.is_empty();
 
+        // Keep track of the total number of steps computed
+        let mut progress: usize = 0;
+
         // Create Sapling SpendDescriptions
         if !spends.is_empty() {
             let anchor = self.anchor.expect("anchor was set if spends were added");
@@ -302,6 +315,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                     )
                     .map_err(|()| Error::SpendProof)?;
 
+                // Update progress and send a notification on the channel
+                progress += 1;
+                progress_notifier.as_ref().map(|tx| tx.send(progress));
+
                 self.mtx.shielded_spends.push(
                     crate::zcash::primitives::transaction::components::SpendDescription {
                         cv,
@@ -320,6 +337,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Create Sapling OutputDescriptions
         for (_, output) in outputs.into_iter() {
             let output_desc = output.build(prover, &mut ctx, &mut self.rng);
+
+            // Update progress and send a notification on the channel
+            progress += 1;
+            progress_notifier.as_ref().map(|tx| tx.send(progress));
+
             self.mtx.shielded_outputs.push(output_desc);
         }
 
