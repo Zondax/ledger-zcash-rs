@@ -137,11 +137,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         rcv: jubjub::Fr,              //get from ledger
     ) -> Result<(), Error> {
         // Consistency check: all anchors must equal the first one
-        //Fixme: add this later when we get info from chain
-        // so that the tests don't fail
-        // see: https://github.com/Zondax/ledger-zcash-rs/issues/5
-        self.anchor = Some(bls12_381::Scalar::one());
-        /*
         let cmu = Node::new(note.cmu().into());
         if let Some(anchor) = self.anchor {
             let path_root: bls12_381::Scalar = merkle_path.root(cmu).into();
@@ -151,7 +146,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         } else {
             self.anchor = Some(merkle_path.root(cmu).into())
         }
-         */
 
         self.mtx.value_balance += Amount::from_u64(note.value).map_err(|_| Error::InvalidAmount)?;
 
