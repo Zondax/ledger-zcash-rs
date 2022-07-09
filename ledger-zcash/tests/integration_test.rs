@@ -61,7 +61,7 @@ async fn version() {
     println!("patch {}", resp.patch);
     println!("locked {}", resp.locked);
 
-    assert_eq!(resp.major, 2);
+    assert_eq!(resp.major, 3);
 }
 
 #[tokio::test]
@@ -272,7 +272,7 @@ async fn do_full_transaction_shieldedonly() {
         },
         witness: IncrementalWitness::read(
             &hex::decode(
-                "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
+                "0102cda01d86b1a443f4012e639556616fa4638233b93a61d12bd30c38ca678d69000101fef93fadf0bfbd769ec217949b45ca5fef3f1b6ae2aebdfbfac8a5f29cd9e24901d0282378d8c5c23edd6be1a5ab023ab608c3ba21411dd7824dd1f52ad074382a00",
             )
             .unwrap()[..],
         )
@@ -381,7 +381,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
         diversifier: d,
         witness: IncrementalWitness::read(
             &hex::decode(
-                "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
+                "0102cda01d86b1a443f4012e639556616fa4638233b93a61d12bd30c38ca678d69000101fef93fadf0bfbd769ec217949b45ca5fef3f1b6ae2aebdfbfac8a5f29cd9e24901d0282378d8c5c23edd6be1a5ab023ab608c3ba21411dd7824dd1f52ad074382a00",
             )
             .unwrap()[..],
         )
@@ -532,7 +532,7 @@ async fn do_full_tx_in_pieces() {
         },
         witness: IncrementalWitness::read(
             &hex::decode(
-                "01305aef35a6fa9dd43af22d2557f99268fbab70a53e963fa67fc762391510406000000000",
+                "0102cda01d86b1a443f4012e639556616fa4638233b93a61d12bd30c38ca678d69000101fef93fadf0bfbd769ec217949b45ca5fef3f1b6ae2aebdfbfac8a5f29cd9e24901d0282378d8c5c23edd6be1a5ab023ab608c3ba21411dd7824dd1f52ad074382a00",
             )
             .unwrap()[..],
         )

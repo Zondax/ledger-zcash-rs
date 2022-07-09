@@ -155,8 +155,7 @@ impl SaplingProvingContext {
 
         // Try to verify the proof:
         // Construct public input for circuit
-        //Fixme: do this when the anchor is set correct
-        /*
+
         let mut public_input = [bls12_381::Scalar::zero(); 7];
         {
             let affine = rk.0.to_affine();
@@ -174,7 +173,7 @@ impl SaplingProvingContext {
 
         // Add the nullifier through multiscalar packing
         {
-            let nullifier = multipack::bytes_to_bits_le(&nullifier);
+            let nullifier = multipack::bytes_to_bits_le(&nullifier.0);
             let nullifier = multipack::compute_multipacking(&nullifier);
 
             assert_eq!(nullifier.len(), 2);
@@ -185,7 +184,7 @@ impl SaplingProvingContext {
 
         // Verify the proof
         verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
-        */
+
         // Compute value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
 
