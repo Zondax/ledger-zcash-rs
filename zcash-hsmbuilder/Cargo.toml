@@ -53,3 +53,4 @@ zcash_proofs = { version = "0.5", features = ["multicore"], optional = true }
 #zecwallet-compat
 zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "adeb3ec4ad15480482bc2962bc9fe453814db9ee", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 zecw_proofs = { git = "https://github.com/adityapk00/librustzcash", rev = "adeb3ec4ad15480482bc2962bc9fe453814db9ee", features = ["multicore"], optional = true, package = "zcash_proofs" }
+tokio = { version = "1.6", features = ["sync"] }
