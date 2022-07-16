@@ -32,7 +32,7 @@ use crate::zcash::primitives::{
     legacy::Script,
     memo::MemoBytes as Memo,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
+    primitives::{Diversifier, Note, Nullifier, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::Signature,
     sapling::Node,
     transaction::{
@@ -40,6 +40,7 @@ use crate::zcash::primitives::{
         Transaction,
     },
 };
+
 use zcash_hsmbuilder::{
     data::{
         HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
@@ -58,6 +59,7 @@ use crate::builder::{Builder, BuilderError};
 
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf1;
+const INS_GET_NF: u8 = 0xf2;
 const INS_INIT_TX: u8 = 0xa0;
 const INS_EXTRACT_SPEND: u8 = 0xa1;
 const INS_EXTRACT_OUTPUT: u8 = 0xa2;
@@ -83,6 +85,12 @@ const OVK_SIZE: usize = 32;
 
 ///IVK size
 const IVK_SIZE: usize = 32;
+
+///NF size
+const NF_SIZE: usize = 32;
+
+///note commitment size
+const NOTE_COMMITMENT_SIZE: usize = 32;
 
 ///sha256 digest size
 const SHA256_DIGEST_SIZE: usize = 32;
@@ -995,6 +1003,54 @@ where
             _ => None,
         };
         Ok((rcv, rseed, hashseed))
+    }
+
+    /// Get nullifier from note commitment and note position
+    pub async fn get_nullifier(
+        &self,
+        path: u32,
+        position: u64,
+        note_commitment: &[u8; NOTE_COMMITMENT_SIZE],
+    ) -> Result<Nullifier, LedgerAppError<E::Error>> {
+        let mut input_data = Vec::with_capacity(4 + 8 + NOTE_COMMITMENT_SIZE);
+        input_data.extend_from_slice(&path.to_le_bytes());
+        input_data.extend_from_slice(&position.to_le_bytes());
+        input_data.extend_from_slice(&note_commitment[..]);
+
+        let command = APDUCommand {
+            cla: Self::CLA,
+            ins: INS_GET_NF,
+            p1: 0x01,
+            p2: 0x00,
+            data: input_data,
+        };
+
+        let response = self.apdu_transport.exchange(&command).await?;
+        match response.error_code() {
+            Ok(APDUErrorCode::NoError) => {}
+            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
+            Err(err) => {
+                return Err(LedgerAppError::AppSpecific(
+                    err,
+                    "[APDU_ERROR] Unknown".to_string(),
+                ))
+            }
+        }
+
+        let response_data = response.data();
+
+        if response_data.len() < NF_SIZE {
+            return Err(LedgerAppError::InvalidPK);
+        }
+
+        log::info!("Received response {}", response_data.len());
+
+        let mut nf_bytes = [0u8; NF_SIZE];
+        nf_bytes.copy_from_slice(&response_data[0..NF_SIZE]);
+
+        let nf = Nullifier(nf_bytes);
+
+        Ok(nf)
     }
 
     ///Get a transparent signature from the ledger

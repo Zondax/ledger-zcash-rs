@@ -104,6 +104,32 @@ async fn get_key_ovk() {
 
 #[tokio::test]
 #[serial]
+async fn get_nf() {
+    init_logging();
+
+    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+
+    let path = 1000;
+
+    let pos: u64 = 2578461368;
+
+    let cm: [u8; 32] = [
+        33, 201, 70, 152, 202, 50, 75, 76, 186, 206, 41, 29, 39, 171, 182, 138, 10, 175, 39, 55,
+        220, 69, 86, 84, 28, 127, 205, 232, 206, 17, 221, 232,
+    ];
+
+    let resp = app.get_nullifier(path, pos, &cm).await.unwrap();
+    let vec_nf = resp.to_vec();
+    let expected_nf: Vec<u8> = ([
+        37, 241, 242, 207, 94, 44, 43, 195, 29, 7, 182, 111, 77, 84, 240, 144, 173, 137, 177, 152,
+        137, 63, 18, 173, 174, 68, 125, 223, 132, 226, 20, 90,
+    ])
+    .to_vec();
+    assert_eq!(vec_nf, expected_nf);
+}
+
+#[tokio::test]
+#[serial]
 async fn address_unshielded() {
     init_logging();
 
