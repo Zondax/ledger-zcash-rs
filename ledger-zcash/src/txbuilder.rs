@@ -6,14 +6,13 @@ use crate::zcash::primitives::{
     legacy::TransparentAddress,
     memo::MemoBytes,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress},
-    sapling::Node,
+    sapling::{Diversifier, Node, Note, PaymentAddress},
     transaction::{
         components::{Amount, OutPoint, TxOut},
         Transaction,
     },
 };
-use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
+use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
@@ -387,7 +386,7 @@ impl Builder {
         height: u32,
         branch: consensus::BranchId,
         progress_notifier: Option<mpsc::Sender<usize>>,
-    ) -> Result<(Transaction, TransactionMetadata), BuilderError>
+    ) -> Result<(Transaction, SaplingMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
         TX: HsmTxProver + Send + Sync,
@@ -514,13 +513,12 @@ impl Builder {
         }
 
         //apply them in the builder
-        hsmbuilder
-            .add_signatures_transparant(tsigs, branch)
-            .map_err(|_| BuilderError::UnableToApplyTransparentSigs)?;
-        hsmbuilder
+        let hsmbuilder = hsmbuilder
             .add_signatures_spend(zsigs)
             .map_err(|_| BuilderError::UnableToApplySaplingSigs)?;
-
+        let hsmbuilder = hsmbuilder
+            .add_signatures_transparent(tsigs)
+            .map_err(|_| BuilderError::UnableToApplyTransparentSigs)?;
         hsmbuilder
             .finalize()
             .map_err(|_| BuilderError::FinalizationError)

@@ -16,7 +16,6 @@
 use serial_test::serial;
 
 use env_logger::Env;
-use std::path::Path;
 use zx_bip44::BIP44Path;
 
 #[path = "../src/zcash.rs"]
@@ -27,7 +26,7 @@ use zcash::primitives::{
     keys::OutgoingViewingKey,
     legacy::Script,
     merkle_tree::IncrementalWitness,
-    primitives::{Note, PaymentAddress, Rseed},
+    sapling::{Note, PaymentAddress, Rseed},
     transaction::components::{Amount, OutPoint},
 };
 
@@ -435,6 +434,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
         - tout1.value
         - output1.value
         - txfee;
+    let change_amount = change_amount.unwrap();
 
     let output2 = DataShieldedOutput {
         value: change_amount,
@@ -509,6 +509,7 @@ async fn do_full_transaction_transparentonly() {
 
     let txfee = Amount::from_u64(fee).unwrap();
     let change_amount = tin1.value + tin2.value - tout1.value - txfee;
+    let change_amount = change_amount.unwrap();
 
     let tout2 = DataTransparentOutput {
         value: change_amount,
@@ -529,154 +530,4 @@ async fn do_full_transaction_transparentonly() {
         .do_transaction(input, TestNetwork, consensus::BranchId::Sapling)
         .await;
     assert!(r.is_ok());
-}
-
-#[tokio::test]
-#[serial]
-async fn do_full_tx_in_pieces() {
-    init_logging();
-
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
-
-    let addr = PaymentAddress::from_bytes(&[
-        198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249,
-        93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102, 86, 114,
-        110, 162, 118, 103,
-    ])
-    .unwrap();
-
-    let d = addr.diversifier();
-
-    let spend1 = DataShieldedSpend {
-        path: 1000,
-        diversifier: *d,
-        note: Note {
-            value: 50000,
-            rseed: Rseed::AfterZip212([0u8; 32]),
-            g_d: d.g_d().unwrap(),
-            pk_d: *addr.pk_d(),
-        },
-        witness: IncrementalWitness::read(
-            &hex::decode(
-                "0102cda01d86b1a443f4012e639556616fa4638233b93a61d12bd30c38ca678d69000101fef93fadf0bfbd769ec217949b45ca5fef3f1b6ae2aebdfbfac8a5f29cd9e24901d0282378d8c5c23edd6be1a5ab023ab608c3ba21411dd7824dd1f52ad074382a00",
-            )
-            .unwrap()[..],
-        )
-        .unwrap()
-        .path()
-        .unwrap(),
-    };
-
-    let spend1_ = spend1.clone();
-    let spend2 = DataShieldedSpend {
-        note: Note {
-            rseed: Rseed::AfterZip212([0xFF; 32]),
-            ..spend1_.note
-        },
-        ..spend1_
-    };
-
-    let output1 = DataShieldedOutput {
-        value: Amount::from_u64(60000).unwrap(),
-        address: PaymentAddress::from_bytes(&[
-            21, 234, 231, 0, 224, 30, 36, 226, 19, 125, 85, 77, 103, 187, 13, 166, 78, 238, 11,
-            241, 194, 195, 146, 197, 241, 23, 58, 151, 155, 174, 184, 153, 102, 56, 8, 205, 34,
-            237, 141, 242, 117, 102, 204,
-        ])
-        .unwrap(),
-        ovk: None,
-        memo: None,
-    };
-
-    let fee = 1000;
-
-    let change_amount = spend1.note.value + spend2.note.value - u64::from(output1.value) - fee;
-
-    let output2 = DataShieldedOutput {
-        value: Amount::from_u64(change_amount).unwrap(),
-        address: PaymentAddress::from_bytes(&[
-            198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13,
-            249, 93, 202, 223, 140, 15, 162, 93, 203, 237, 170, 246, 5, 117, 56, 184, 18, 208, 102,
-            86, 114, 110, 162, 118, 103,
-        ])
-        .unwrap(),
-        ovk: Some(OutgoingViewingKey([
-            111, 192, 30, 170, 102, 94, 3, 165, 60, 30, 3, 62, 208, 215, 123, 103, 12, 240, 117,
-            237, 228, 173, 167, 105, 153, 122, 46, 210, 236, 34, 95, 202,
-        ])),
-        memo: None,
-    };
-
-    let input = DataInput {
-        txfee: fee,
-        vec_tin: vec![],
-        vec_tout: vec![],
-        vec_sspend: vec![spend1, spend2],
-        vec_soutput: vec![output1, output2],
-    };
-
-    let init_blob = input.to_inittx_data();
-
-    log::info!("sending inittx data to ledger");
-    log::info!("{}", hex::encode(&init_blob.to_hsm_bytes()));
-    let r = app.init_tx(init_blob).await;
-
-    assert!(r.is_ok());
-
-    let mut builder = zcash_hsmbuilder::ZcashBuilder::new_test(input.txfee);
-    log::info!("adding transaction data to builder");
-    for info in input.vec_tin.iter() {
-        let r = builder.add_transparent_input(info.to_builder_data());
-        assert!(r.is_ok());
-    }
-
-    for info in input.vec_tout.iter() {
-        let r = builder.add_transparent_output(info.to_builder_data());
-        assert!(r.is_ok());
-    }
-
-    for info in input.vec_sspend.iter() {
-        log::info!("getting spend data from ledger");
-        let req = app.get_spendinfo().await;
-        assert!(req.is_ok());
-        let spendinfo = req.unwrap();
-        let r = builder.add_sapling_spend(info.to_builder_data(spendinfo));
-        assert!(r.is_ok());
-    }
-    log::info!("getting output data from ledger");
-    for info in input.vec_soutput.iter() {
-        let req = app.get_outputinfo().await;
-        let outputinfo = req.unwrap();
-        let r = builder.add_sapling_output(info.to_builder_data(outputinfo));
-        assert!(r.is_ok());
-    }
-    let mut prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
-        Path::new("../params/sapling-spend.params"),
-        Path::new("../params/sapling-output.params"),
-    );
-    log::info!("building the transaction");
-    let ledgertxdata = builder.build(&mut prover);
-    assert!(ledgertxdata.is_ok());
-    log::info!("building the transaction success");
-    log::info!("sending checkdata to ledger");
-    let req = app.checkandsign(ledgertxdata.unwrap()).await;
-    assert!(req.is_ok());
-    log::info!("checking and signing succeeded by ledger");
-
-    let mut transparent_sigs = Vec::new();
-    let mut spend_sigs = Vec::new();
-    log::info!("requesting signatures");
-
-    for _ in 0..input.vec_tin.len() {
-        let req = app.get_transparent_signature().await;
-        assert!(req.is_ok());
-        transparent_sigs.push(req.unwrap());
-    }
-
-    for _ in 0..input.vec_sspend.len() {
-        let req = app.get_spend_signature().await;
-        assert!(req.is_ok());
-        spend_sigs.push(req.unwrap());
-    }
-    log::info!("all signatures retrieved");
 }

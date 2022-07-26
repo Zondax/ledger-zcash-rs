@@ -8,9 +8,10 @@ use crate::{
     zcash::{
         primitives::{
             merkle_tree::MerklePath,
-            primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-            redjubjub::{PublicKey, Signature},
-            sapling::Node,
+            sapling::{
+                redjubjub::{PublicKey, Signature},
+                Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+            },
             transaction::components::{Amount, GROTH_PROOF_SIZE},
         },
         proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters},
@@ -278,7 +279,7 @@ impl HsmTxProver for LocalTxProver {
     }
 }
 
-impl crate::zcash::primitives::prover::TxProver for LocalTxProver {
+impl crate::zcash::primitives::sapling::prover::TxProver for LocalTxProver {
     type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {

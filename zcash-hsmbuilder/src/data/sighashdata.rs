@@ -1,8 +1,16 @@
-use crate::zcash::primitives::transaction::TransactionData;
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
+
+use crate::{
+    hsmauth,
+    zcash::primitives::transaction::{
+        self,
+        components::{sapling, sprout, transparent},
+        TransactionData,
+    },
+};
 
 const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";
 const ZCASH_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSequencHash";
@@ -11,10 +19,10 @@ const ZCASH_JOINSPLITS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashJSplitsHash";
 const ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSSpendsHash";
 const ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSOutputHash";
 
-const SIGHASH_NONE: u32 = 2;
-const SIGHASH_SINGLE: u32 = 3;
-const SIGHASH_MASK: u32 = 0x1f;
-const SIGHASH_ANYONECANPAY: u32 = 0x80;
+const SIGHASH_NONE: u8 = 0x02;
+const SIGHASH_SINGLE: u8 = 0x03;
+const SIGHASH_MASK: u8 = 0x1f;
+const SIGHASH_ANYONECANPAY: u8 = 0x80;
 
 const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C4_8270;
 const SAPLING_VERSION_GROUP_ID: u32 = 0x892F_2085;
@@ -81,20 +89,21 @@ enum SigHashVersion {
 }
 
 impl SigHashVersion {
-    fn from_tx(tx: &TransactionData) -> Self {
+    fn from_tx<A: transaction::Authorization>(tx: &TransactionData<A>) -> Self {
         use crate::zcash::primitives::transaction::TxVersion;
 
-        match tx.version {
+        match tx.version() {
             TxVersion::Sprout(_) => SigHashVersion::Sprout,
             TxVersion::Overwinter => SigHashVersion::Overwinter,
             TxVersion::Sapling => SigHashVersion::Sapling,
+            TxVersion::Zip225 => unimplemented!(),
         }
     }
 }
 
-fn prevout_hash(tx: &TransactionData) -> Blake2bHash {
-    let mut data = Vec::with_capacity(tx.vin.len() * 36);
-    for t_in in &tx.vin {
+fn prevout_hash<A: transparent::Authorization>(vins: &[transparent::TxIn<A>]) -> Blake2bHash {
+    let mut data = Vec::with_capacity(vins.len() * 36);
+    for t_in in vins {
         t_in.prevout.write(&mut data).unwrap();
     }
     Blake2bParams::new()
@@ -103,9 +112,9 @@ fn prevout_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn sequence_hash(tx: &TransactionData) -> Blake2bHash {
-    let mut data = Vec::with_capacity(tx.vin.len() * 4);
-    for t_in in &tx.vin {
+fn sequence_hash<A: transparent::Authorization>(vins: &[transparent::TxIn<A>]) -> Blake2bHash {
+    let mut data = Vec::with_capacity(vins.len() * 4);
+    for t_in in vins {
         (&mut data)
             .write_u32::<LittleEndian>(t_in.sequence)
             .unwrap();
@@ -116,9 +125,9 @@ fn sequence_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
-    let mut data = Vec::with_capacity(tx.vout.len() * 34);
-    for t_out in &tx.vout {
+fn outputs_hash(vouts: &[transparent::TxOut]) -> Blake2bHash {
+    let mut data = Vec::with_capacity(vouts.len() * 34);
+    for t_out in vouts {
         t_out.write(&mut data).unwrap();
     }
     Blake2bParams::new()
@@ -127,44 +136,60 @@ fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
+fn joinsplits_hash(
+    version: transaction::TxVersion,
+    joinsplits: &[sprout::JsDescription],
+    joinsplit_pubkey: &[u8; 32],
+) -> Blake2bHash {
+    let uses_groth_proofs = match version {
+        transaction::TxVersion::Sprout(_) | transaction::TxVersion::Overwinter => false,
+        _ => true,
+    };
+
     let mut data = Vec::with_capacity(
-        tx.joinsplits.len()
-            * if tx.version.uses_groth_proofs() {
+        joinsplits.len()
+            * if uses_groth_proofs {
                 1698 // JSDescription with Groth16 proof
             } else {
                 1802 // JSDescription with PHGR13 proof
             },
     );
-    for js in &tx.joinsplits {
+    for js in joinsplits {
         js.write(&mut data).unwrap();
     }
-    data.extend_from_slice(&tx.joinsplit_pubkey.unwrap());
+    data.extend_from_slice(joinsplit_pubkey);
     Blake2bParams::new()
         .hash_length(32)
         .personal(ZCASH_JOINSPLITS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
-fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
-    let mut data = Vec::with_capacity(tx.shielded_spends.len() * 384);
-    for s_spend in &tx.shielded_spends {
+fn shielded_spends_hash<A>(shielded_spends: &[sapling::SpendDescription<A>]) -> Blake2bHash
+where
+    A: sapling::Authorization,
+    A::Proof: AsRef<[u8]>,
+{
+    let mut data = Vec::with_capacity(shielded_spends.len() * 384);
+    for s_spend in shielded_spends {
         data.extend_from_slice(&s_spend.cv.to_bytes());
         data.extend_from_slice(s_spend.anchor.to_repr().as_ref());
         data.extend_from_slice(&s_spend.nullifier.0[..]);
         s_spend.rk.write(&mut data).unwrap();
-        data.extend_from_slice(&s_spend.zkproof);
+        data.extend_from_slice(&s_spend.zkproof.as_ref());
     }
+
     Blake2bParams::new()
         .hash_length(32)
         .personal(ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
-fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
-    let mut data = Vec::with_capacity(tx.shielded_outputs.len() * 948);
-    for s_out in &tx.shielded_outputs {
-        s_out.write(&mut data).unwrap();
+fn shielded_outputs_hash(
+    shielded_outputs: &[sapling::OutputDescription<sapling::GrothProofBytes>],
+) -> Blake2bHash {
+    let mut data = Vec::with_capacity(shielded_outputs.len() * 948);
+    for s_out in shielded_outputs {
+        s_out.write_v4(&mut data).unwrap();
     }
     Blake2bParams::new()
         .hash_length(32)
@@ -172,68 +197,92 @@ fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-pub fn signature_hash_input_data(tx: &TransactionData, hash_type: u32) -> TransactionDataSighash {
+pub fn signature_hash_input_data(
+    tx: &TransactionData<hsmauth::Unauthorized>,
+    hash_type: u8,
+) -> TransactionDataSighash
+where
+{
     let mut txdata_sighash = TransactionDataSighash::default();
     let mut tmp = [0; 8];
     let sigversion = SigHashVersion::from_tx(tx);
     match sigversion {
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
-            let header = tx.version.header();
-            let version_group_id = tx.version.version_group_id();
+            let header = tx.version().header();
+            let version_group_id = tx.version().version_group_id();
 
             write_u32!(txdata_sighash.header, header, tmp);
             write_u32!(txdata_sighash.version_id, version_group_id, tmp);
-            update_data!(
-                txdata_sighash.prevoutshash,
-                hash_type & SIGHASH_ANYONECANPAY == 0,
-                prevout_hash(tx)
-            ); //true for sighash_all
 
-            update_data!(
-                txdata_sighash.sequencehash,
-                hash_type & SIGHASH_ANYONECANPAY == 0
-                    && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
-                    && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
-                sequence_hash(tx)
-            ); //true for sighash_all
-
-            if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
-                && (hash_type & SIGHASH_MASK) != SIGHASH_NONE
+            //transparent data
+            if let Some((vin, vout)) = tx
+                .transparent_bundle()
+                .map(|b| (b.vin.clone(), b.vout.clone()))
+                .or_else(|| Some((vec![], vec![])))
             {
-                txdata_sighash
-                    .outputshash
-                    .copy_from_slice(outputs_hash(tx).as_ref()); //true for sighash all
-            } else {
-                txdata_sighash.outputshash.copy_from_slice(&[0; 32]);
-            };
-            update_data!(
-                txdata_sighash.joinsplitshash,
-                !tx.joinsplits.is_empty(),
-                joinsplits_hash(tx)
-            );
-            if sigversion == SigHashVersion::Sapling {
+                update_data!(
+                    txdata_sighash.prevoutshash,
+                    hash_type & SIGHASH_ANYONECANPAY == 0,
+                    prevout_hash(&vin)
+                ); //true for sighash_all
+
+                update_data!(
+                    txdata_sighash.sequencehash,
+                    hash_type & SIGHASH_ANYONECANPAY == 0
+                        && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
+                        && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
+                    sequence_hash(&vin)
+                ); //true for sighash_all
+
+                if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
+                    && (hash_type & SIGHASH_MASK) != SIGHASH_NONE
+                {
+                    txdata_sighash
+                        .outputshash
+                        .copy_from_slice(outputs_hash(&vout).as_ref()); //true for sighash all
+                } else {
+                    txdata_sighash.outputshash.copy_from_slice(&[0; 32]);
+                };
+            }
+
+            //sprout data
+            if let Some(bundle) = tx.sprout_bundle() {
+                update_data!(
+                    txdata_sighash.joinsplitshash,
+                    !bundle.joinsplits.is_empty(),
+                    joinsplits_hash(tx.version(), &bundle.joinsplits, &bundle.joinsplit_pubkey)
+                );
+            }
+
+            //sapling data
+            if let Some(bundle) = tx.sapling_bundle() {
                 update_data!(
                     txdata_sighash.shieldedspendhash,
-                    !tx.shielded_spends.is_empty(),
-                    shielded_spends_hash(tx)
+                    !bundle.shielded_spends.is_empty(),
+                    shielded_spends_hash(&bundle.shielded_spends)
                 );
                 update_data!(
                     txdata_sighash.shieldedoutputhash,
-                    !tx.shielded_outputs.is_empty(),
-                    shielded_outputs_hash(tx)
+                    !bundle.shielded_outputs.is_empty(),
+                    shielded_outputs_hash(&bundle.shielded_outputs)
                 );
             }
-            write_u32!(txdata_sighash.lock_time, tx.lock_time, tmp);
-            let expiry_height = tx.expiry_height.into();
+
+            write_u32!(txdata_sighash.lock_time, tx.lock_time(), tmp);
+
+            let expiry_height = tx.expiry_height().into();
             write_u32!(txdata_sighash.expiry_height, expiry_height, tmp);
-            if sigversion == SigHashVersion::Sapling {
+
+            if let Some(bundle) = tx.sapling_bundle() {
                 txdata_sighash
                     .value_balance
-                    .copy_from_slice(&tx.value_balance.to_i64_le_bytes());
+                    .copy_from_slice(&bundle.value_balance.to_i64_le_bytes());
             }
-            write_u32!(txdata_sighash.hash_type, hash_type, tmp);
+
+            write_u32!(txdata_sighash.hash_type, hash_type as u32, tmp);
         }
         SigHashVersion::Sprout => unimplemented!(),
     }
+
     txdata_sighash
 }

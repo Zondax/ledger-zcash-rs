@@ -32,9 +32,10 @@ use crate::zcash::primitives::{
     legacy::Script,
     memo::MemoBytes as Memo,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, Nullifier, PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::Signature,
-    sapling::Node,
+    sapling::{
+        redjubjub::Signature, Diversifier, Node, Note, Nullifier, PaymentAddress,
+        ProofGenerationKey, Rseed,
+    },
     transaction::{
         components::{Amount, OutPoint},
         Transaction,
@@ -47,7 +48,7 @@ use zcash_hsmbuilder::{
         SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo,
         TransparentOutputBuilderInfo,
     },
-    txbuilder::TransactionMetadata,
+    txbuilder::SaplingMetadata,
 };
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -522,7 +523,7 @@ where
         input: DataInput,
         parameters: P,
         branch: consensus::BranchId,
-    ) -> Result<(Transaction, TransactionMetadata), LedgerAppError<E::Error>> {
+    ) -> Result<(Transaction, SaplingMetadata), LedgerAppError<E::Error>> {
         log::info!("adding transaction data to builder");
         let fee = input.txfee;
 
@@ -1056,7 +1057,7 @@ where
     ///Get a transparent signature from the ledger
     pub async fn get_transparent_signature(
         &self,
-    ) -> Result<secp256k1::Signature, LedgerAppError<E::Error>> {
+    ) -> Result<secp256k1::ecdsa::Signature, LedgerAppError<E::Error>> {
         let command = APDUCommand {
             cla: Self::CLA,
             ins: INS_EXTRACT_TRANSSIG,
@@ -1085,7 +1086,7 @@ where
 
         log::info!("Received response {}", response_data.len());
 
-        secp256k1::Signature::from_compact(&response_data[0..SIG_SIZE])
+        secp256k1::ecdsa::Signature::from_compact(&response_data[0..SIG_SIZE])
             .map_err(|_| LedgerAppError::InvalidSignature)
     }
 

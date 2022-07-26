@@ -7,12 +7,11 @@ use crate::zcash::{
             VALUE_COMMITMENT_VALUE_GENERATOR,
         },
         merkle_tree::MerklePath,
-        primitives::{
-            Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
+        sapling::{
+            prover::TxProver,
+            redjubjub::{PrivateKey, PublicKey, Signature},
+            Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
         },
-        prover::TxProver,
-        redjubjub::{PrivateKey, PublicKey, Signature},
-        sapling::Node,
         transaction::components::Amount,
     },
     proofs::circuit::sapling::{Output, Spend},

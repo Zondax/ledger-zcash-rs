@@ -10,9 +10,7 @@ use crate::zcash::primitives::{
     legacy::Script,
     memo::MemoBytes as Memo,
     merkle_tree::{IncrementalWitness, MerklePath},
-    primitives::{PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::Signature,
-    sapling::Node,
+    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
 

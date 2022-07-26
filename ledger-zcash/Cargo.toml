@@ -21,32 +21,33 @@ normal-zcash = ["zcash_primitives", "zcash-hsmbuilder/normal-zcash"]
 zecwallet-compat = ["zecw_primitives", "zcash-hsmbuilder/zecwallet-compat"]
 
 [dependencies]
-byteorder = "1.4.3"
-lazy_static = "1.4.0"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0.31"
-log = "0.4.17"
-zx-bip44 = "0.1.0"
-hex = "0.4.3"
-jubjub = { version = "0.5.1", default-features = false }
-secp256k1 = { version = "0.20", default-features = false }
-group = "0.8.0"
-sha2 = "0.9"
-rand_core = "0.5"
 arrayvec = "0.7.2"
-ripemd = "0.1.1"
-ff = "0.8"
+byteorder = "1.4.3"
 cfg-if = "1.0.0"
+ff = "0.12"
+group = "0.12"
+lazy_static = "1"
+hex = "0.4.3"
+jubjub = { version = "0.9", default-features = false }
+log = "0.4.17"
+rand_core = "0.6"
+ripemd = "0.1"
+secp256k1 = { version = "0.21", default-features = false }
+sha2 = "0.9"
+thiserror = "1.0.31"
+zx-bip44 = "0.1.0"
+
+serde = { version = "1.0", features = ["derive"] }
 
 ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
 
 #zcash
 zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false, version = "0.3" }
-zcash_primitives = { version = "0.5", features = ["transparent-inputs"], optional = true }
+zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
 
 #zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "adeb3ec4ad15480482bc2962bc9fe453814db9ee", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 tokio = { version = "1.6", features = ["sync"] }
 
 [dev-dependencies]
