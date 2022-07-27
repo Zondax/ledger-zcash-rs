@@ -312,6 +312,11 @@ async fn do_full_transaction_shieldedonly() {
             rseed: Rseed::AfterZip212([0xFF; 32]),
             ..spend1_.note
         },
+        witness: IncrementalWitness::read(
+            &hex::decode(
+                "0102cda01d86b1a443f4012e639556616fa4638233b93a61d12bd30c38ca678d6901d0282378d8c5c23edd6be1a5ab023ab608c3ba21411dd7824dd1f52ad074382a0101fef93fadf0bfbd769ec217949b45ca5fef3f1b6ae2aebdfbfac8a5f29cd9e2490000"
+            ).unwrap()[..])
+            .unwrap().path().unwrap(),
         ..spend1_
     };
 

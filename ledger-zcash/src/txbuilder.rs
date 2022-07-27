@@ -158,7 +158,7 @@ pub enum BuilderError {
     InvalidOVKHashSeed(usize),
 
     /// Error occured when building tx for ledger
-    #[error("error communicating with ledger during transaction building")]
+    #[error("error occured while building the final tx from the ledger data")]
     FailedToBuildTx,
 
     /// Error occured when signing tx with ledger
