@@ -5,12 +5,11 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use zcash_primitives::{consensus::BranchId, transaction::Authorization};
 
 use crate::zcash::{
     note_encryption::NoteEncryption,
     primitives::{
-        consensus,
+        consensus::{self, BranchId},
         constants::SPENDING_KEY_GENERATOR,
         keys::OutgoingViewingKey,
         legacy::{Script, TransparentAddress},
@@ -29,7 +28,7 @@ use crate::zcash::{
                 GROTH_PROOF_SIZE,
             },
             sighash::{signature_hash, SignableInput, SIGHASH_ALL},
-            Transaction, TransactionData, Unauthorized,
+            Authorization, Transaction, TransactionData, Unauthorized,
         },
     },
 };

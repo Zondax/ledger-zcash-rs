@@ -18,7 +18,7 @@ name = "zcash_hsmbuilder"
 [features]
 default = ["normal-zcash"]
 normal-zcash = [ "zcash_primitives", "zcash_proofs" ]
-zecwallet-compat = [ "zecw_primitives", "zecw_proofs" ]
+zecwallet-compat = [ "zecw_primitives", "zecw_proofs", "zecw_note_encryption" ]
 #local tx prover features
 bundled-prover = ["wagyu-zcash-parameters"]
 local-prover = []

@@ -16,7 +16,7 @@
 
 use std::marker::PhantomData;
 
-use zcash_primitives::transaction::{
+use crate::zcash::primitives::transaction::{
     self,
     components::{
         sapling::Authorization as SAuthorization, transparent::Authorization as TAuthorization,
