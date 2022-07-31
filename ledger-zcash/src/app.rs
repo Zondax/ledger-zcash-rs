@@ -524,6 +524,7 @@ where
         input: DataInput,
         parameters: P,
         branch: consensus::BranchId,
+        target_height: u32,
     ) -> Result<(Transaction, SaplingMetadata), LedgerAppError<E::Error>> {
         log::info!("adding transaction data to builder");
         let fee = input.txfee;
@@ -547,7 +548,7 @@ where
                 &prover,
                 fee,
                 &mut rand_core::OsRng,
-                0,
+                target_height,
                 branch,
                 Some(tx),
             )

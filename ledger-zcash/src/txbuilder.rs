@@ -345,8 +345,10 @@ impl Builder {
     /// If there are any shielded inputs, always have at least two shielded outputs,
     /// padding with dummy outputs if necessary.
     /// See <https://github.com/zcash/zcash/issues/3615>
+    ///
+    /// Same applies when we only have 1 output
     fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
-        if !self.sapling_spends.is_empty() {
+        if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
             let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
             for _ in 0..dummies {

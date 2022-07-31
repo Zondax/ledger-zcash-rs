@@ -634,7 +634,7 @@ where
             {
                 //1) generate the signature message
                 // to verify the signature against
-                let sighash = signature_hash(
+                let sighash = transaction::sighash_v4::v4_signature_hash(
                     &tx_data,
                     &SignableInput::Transparent {
                         hash_type: SIGHASH_ALL,
@@ -644,7 +644,6 @@ where
                         // for p2pkh, always the same as script_pubkey
                         script_code: &info.coin.script_pubkey,
                     },
-                    &tx_data.digest(transaction::txid::TxIdDigester),
                 );
 
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
@@ -760,6 +759,8 @@ where
         //if we have no spends we can just skip
         // applying the signutes and verifying
         if !spends.is_empty() {
+            let sighash = self.sapling_sighash();
+
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
                 .into_iter()
@@ -770,7 +771,7 @@ where
                 let ak = spendinfo.proofkey.ak;
                 let rk = PublicKey(ak.into()).randomize(spendinfo.alpha, SPENDING_KEY_GENERATOR);
 
-                let valid = rk.verify(&self.sapling_sighash(), &spend_auth_sig, p_g);
+                let valid = rk.verify(&sighash, &spend_auth_sig, p_g);
 
                 log::info!("Verification of sapling spend signature: #{}", valid);
                 all_signatures_valid &= valid;
