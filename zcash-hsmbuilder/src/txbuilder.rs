@@ -66,8 +66,8 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng, A: Authoriz
     spends: Vec<SpendDescriptionInfo>,
     outputs: Vec<SaplingOutput>,
     params: P,
-    transparent_bundle: transparent::Bundle<A::TransparentAuth>,
-    sapling_bundle: sapling::Bundle<A::SaplingAuth>,
+    transparent_bundle: Option<transparent::Bundle<A::TransparentAuth>>,
+    sapling_bundle: Option<sapling::Bundle<A::SaplingAuth>>,
     binding_sig: Option<Signature>,
     cached_branchid: Option<BranchId>,
 }
@@ -112,17 +112,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
             outputs: vec![],
             cached_branchid: None,
             binding_sig: None,
-            transparent_bundle: transparent::Bundle {
-                vin: vec![],
-                vout: vec![],
-                authorization: hsmauth::transparent::Unauthorized::default(),
-            },
-            sapling_bundle: sapling::Bundle {
-                shielded_spends: vec![],
-                shielded_outputs: vec![],
-                value_balance: Amount::zero(),
-                authorization: hsmauth::sapling::Unauthorized::default(),
-            },
+            transparent_bundle: None,
+            sapling_bundle: None,
         }
     }
 
@@ -150,9 +141,9 @@ where
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
-                Some(self.transparent_bundle.clone()),
+                self.transparent_bundle.clone(),
                 None,
-                Some(self.sapling_bundle.clone()),
+                self.sapling_bundle.clone(),
                 None,
             )
         })
@@ -181,6 +172,20 @@ where
 impl<P: consensus::Parameters, R: RngCore + CryptoRng, TA: transparent::Authorization>
     Builder<P, R, MixedAuthorization<TA, hsmauth::sapling::Unauthorized>>
 {
+    fn empty_sapling_bundle() -> sapling::Bundle<hsmauth::sapling::Unauthorized> {
+        sapling::Bundle {
+            shielded_spends: vec![],
+            shielded_outputs: vec![],
+            value_balance: Amount::zero(),
+            authorization: Default::default(),
+        }
+    }
+
+    fn sapling_bundle(&mut self) -> &mut sapling::Bundle<hsmauth::sapling::Unauthorized> {
+        self.sapling_bundle
+            .get_or_insert_with(|| Self::empty_sapling_bundle())
+    }
+
     /// Adds a Sapling note to be spent in this transaction.
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
@@ -205,7 +210,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, TA: transparent::Authoriz
             self.anchor = Some(merkle_path.root(cmu).into())
         }
 
-        self.sapling_bundle.value_balance +=
+        self.sapling_bundle().value_balance +=
             Amount::from_u64(note.value).map_err(|_| Error::InvalidAmount)?;
 
         let description = SpendDescriptionInfo {
@@ -235,7 +240,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, TA: transparent::Authoriz
     ) -> Result<(), Error> {
         let output = SaplingOutput::new::<R, P>(ovk, to, value, memo, rcv, rseed, hash_seed)?;
 
-        self.sapling_bundle.value_balance -= value;
+        self.sapling_bundle().value_balance -= value;
 
         self.outputs.push(output);
 
@@ -246,6 +251,24 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, TA: transparent::Authoriz
 impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorization>
     Builder<P, R, MixedAuthorization<hsmauth::transparent::Unauthorized, SA>>
 {
+    fn empty_transparent_bundle() -> transparent::Bundle<hsmauth::transparent::Unauthorized> {
+        transparent::Bundle {
+            vin: vec![],
+            vout: vec![],
+            authorization: Default::default(),
+        }
+    }
+
+    /// Retrieve the transaction's transparent bundle
+    ///
+    /// Will initialize an empty one if not present
+    fn transparent_bundle(
+        &mut self,
+    ) -> &mut transparent::Bundle<hsmauth::transparent::Unauthorized> {
+        self.transparent_bundle
+            .get_or_insert_with(|| Self::empty_transparent_bundle())
+    }
+
     /// Adds a transparent coin to be spent in this transaction.
     pub fn add_transparent_input(
         &mut self,
@@ -269,17 +292,19 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
             _ => return Err(Error::InvalidAddressFormat),
         }
 
+        let bundle = self.transparent_bundle();
+
         //TxIn is made like this to trick the compiler
         // in assigning the correct Authorization generic
         // parameter, since `vin` uses the primitives' Unauthorized
         // whilst we use the one in hsmauth
         let vin = TxIn::new(utxo);
-        self.transparent_bundle.vin.push(TxIn {
+        bundle.vin.push(TxIn {
             script_sig: vin.script_sig,
             sequence: vin.sequence,
             prevout: vin.prevout,
         });
-        self.transparent_bundle
+        bundle
             .authorization
             .inputs
             .push(TransparentInputInfo { pubkey, coin });
@@ -293,7 +318,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
             return Err(Error::InvalidAmount);
         }
 
-        self.transparent_bundle.vout.push(TxOut {
+        self.transparent_bundle().vout.push(TxOut {
             value,
             script_pubkey: to,
         });
@@ -341,21 +366,36 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         // Consistency checks
         //
         // Valid change
-        let change = self.sapling_bundle.value_balance - self.fee
+        let change = self
+            .sapling_bundle
+            .as_ref()
+            .map(|bundle| bundle.value_balance)
+            .unwrap_or(Amount::zero())
+            - self.fee
             + self
                 .transparent_bundle
-                .authorization
-                .inputs
-                .iter()
-                .map(|input| input.coin.value)
-                //poor man's .sum
-                .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
+                .as_ref()
+                .map(|bundle| {
+                    bundle
+                        .authorization
+                        .inputs
+                        .iter()
+                        .map(|input| input.coin.value)
+                        //poor man's .sum
+                        .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
+                })
+                .unwrap_or(Amount::zero())
             - self
                 .transparent_bundle
-                .vout
-                .iter()
-                .map(|output| output.value)
-                .fold(Amount::zero(), |x, acc| (x + acc).unwrap());
+                .as_ref()
+                .map(|bundle| {
+                    bundle
+                        .vout
+                        .iter()
+                        .map(|output| output.value)
+                        .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
+                })
+                .unwrap_or(Amount::zero());
         let change = change.unwrap();
 
         if change.is_negative() {
@@ -426,7 +466,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 progress += 1;
                 progress_notifier.as_ref().map(|tx| tx.send(progress));
 
-                self.sapling_bundle
+                self.sapling_bundle()
                     .shielded_spends
                     .push(sapling::SpendDescription {
                         cv,
@@ -449,7 +489,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             progress += 1;
             progress_notifier.as_ref().map(|tx| tx.send(progress));
 
-            self.sapling_bundle.shielded_outputs.push(output_desc);
+            self.sapling_bundle().shielded_outputs.push(output_desc);
         }
 
         //
@@ -462,7 +502,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
             self.binding_sig = Some(
                 prover
-                    .binding_sig(&mut ctx, self.sapling_bundle.value_balance, &sighash)
+                    .binding_sig(&mut ctx, self.sapling_bundle().value_balance, &sighash)
                     .map_err(|()| Error::BindingSig)?,
             );
         } else {
@@ -470,8 +510,14 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         }
 
         let r = transparent_script_data_fromtx(
-            self.transparent_bundle.vin.as_slice(),
-            &self.transparent_bundle.authorization.inputs,
+            self.transparent_bundle
+                .as_ref()
+                .map(|bundle| bundle.vin.as_slice())
+                .unwrap_or(&[]),
+            self.transparent_bundle
+                .as_ref()
+                .map(|bundle| bundle.authorization.inputs.as_slice())
+                .unwrap_or(&[]),
         );
         if r.is_err() {
             return Err(r.err().unwrap());
@@ -481,8 +527,18 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         let hash_input = signature_hash_input_data(&self.transaction_data().unwrap(), SIGHASH_ALL);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
-        let spenddata = spend_data_hms_fromtx(self.sapling_bundle.shielded_spends.as_slice());
-        let outputdata = output_data_hsm_fromtx(self.sapling_bundle.shielded_outputs.as_slice());
+        let spenddata = spend_data_hms_fromtx(
+            self.sapling_bundle
+                .as_ref()
+                .map(|bundle| bundle.shielded_spends.as_slice())
+                .unwrap_or(&[]),
+        );
+        let outputdata = output_data_hsm_fromtx(
+            self.sapling_bundle
+                .as_ref()
+                .map(|bundle| bundle.shielded_outputs.as_slice())
+                .unwrap_or(&[]),
+        );
 
         Ok(HsmTxData {
             t_script_data: trans_scripts,
@@ -503,7 +559,7 @@ where
     ///convenience wrapper to switch transparent bundle associated parameter
     fn with_transparent_bundle<TA: transparent::Authorization>(
         self,
-        bundle: transparent::Bundle<TA>,
+        bundle: Option<transparent::Bundle<TA>>,
     ) -> Builder<P, R, MixedAuthorization<TA, SA>> {
         let Self {
             rng,
@@ -540,20 +596,27 @@ where
         signatures: Vec<secp256k1::Signature>, //get from ledger
     ) -> Result<Builder<P, R, MixedAuthorization<transparent::Authorized, SA>>, Error> {
         let tx_data = self.transaction_data().expect("consensus branch id set");
-
-        let Self {
-            transparent_bundle:
-                transparent::Bundle {
-                    vin,
-                    vout,
-                    authorization,
-                },
-            ..
-        } = &self;
-
-        if signatures.len() != authorization.inputs.len() {
-            return Err(Error::TranspararentSig);
-        }
+        let transparent::Bundle {
+            vin,
+            vout,
+            authorization,
+        } = match (self.transparent_bundle.as_ref(), signatures.len()) {
+            (None, 0) => return Ok(self.with_transparent_bundle(None)),
+            (None, _) => return Err(Error::TranspararentSig),
+            //this check takes into account also when we have no inputs
+            // since we don't have inputs we also get 0 signatures
+            // and below the other if will take care of skipping the
+            // signature verifications etc
+            (Some(bundle), n) if n != bundle.authorization.inputs.len() => {
+                log::error!(
+                    "Transparent signatures necessary #{}, got #{}",
+                    bundle.authorization.inputs.len(),
+                    n
+                );
+                return Err(Error::TranspararentSig);
+            }
+            (Some(bundle), _) => bundle,
+        };
 
         let mut bundle: transparent::Bundle<transparent::Authorized> = transparent::Bundle {
             vin: Vec::with_capacity(vin.len()),
@@ -607,7 +670,7 @@ where
             }
         }
 
-        Ok(self.with_transparent_bundle(bundle))
+        Ok(self.with_transparent_bundle(Some(bundle)))
     }
 }
 
@@ -620,7 +683,7 @@ where
     ///convenience wrapper to switch transparent bundle associated parameter
     fn with_sapling_bundle<SA: sapling::Authorization>(
         self,
-        bundle: sapling::Bundle<SA>,
+        bundle: Option<sapling::Bundle<SA>>,
     ) -> Builder<P, R, MixedAuthorization<TA, SA>> {
         let Self {
             rng,
@@ -653,82 +716,89 @@ where
     /// Attempt to apply the signatures for the shielded components of the transaction
     pub fn add_signatures_spend(
         self,
-        sign: Vec<Signature>, //get from ledger
+        signatures: Vec<Signature>, //get from ledger
     ) -> Result<Builder<P, R, MixedAuthorization<TA, sapling::Authorized>>, Error> {
-        if sign.len() != self.spends.len() {
-            return Err(Error::SpendSig);
-        }
-
-        let Self {
-            sapling_bundle:
-                sapling::Bundle {
-                    shielded_spends,
-                    shielded_outputs,
-                    value_balance,
-                    ..
-                },
-            spends,
+        let sapling::Bundle {
+            shielded_spends,
+            shielded_outputs,
+            value_balance,
             ..
-        } = &self;
+        } = match (self.sapling_bundle.as_ref(), signatures.len()) {
+            (None, 0) => return Ok(self.with_sapling_bundle(None)),
+            (None, _) => return Err(Error::SpendSig),
+            //if we have no inputs and no signtures were passed this succeeds
+            (Some(_), n) if n != self.spends.len() => {
+                log::error!(
+                    "Sapling signatures necessary #{}, got #{}",
+                    self.spends.len(),
+                    n
+                );
+                return Err(Error::SpendSig);
+            }
+            (Some(bundle), _) => bundle,
+        };
+
+        let Self { spends, .. } = &self;
 
         let mut sapling_bundle = sapling::Bundle {
             shielded_spends: Vec::with_capacity(spends.len()),
             shielded_outputs: shielded_outputs.clone(),
             value_balance: *value_balance,
             authorization: sapling::Authorized {
-                //this can be avoided if we encoded the process
-                // correctly, but let's have that calling this method
-                // with no binding sig is an error
-                // it could happen when there are no sapling spends
-                // but this method is still called
-                binding_sig: self.binding_sig.ok_or(Error::BindingSig)?,
+                //if we reach here without binding sig it's an error
+                // since if we had spends or outputs (so no binding sig needed)
+                // we would have returned already from the method
+                binding_sig: self.binding_sig.ok_or_else(|| {
+                    log::error!("no binding signature");
+                    Error::BindingSig
+                })?,
             },
         };
 
-        //would be more correct to return an error
-        // and we most likely return an error way earlier before getting here
-        // if we have no spends
-        // but in case, we can return a new builder with "authorized" sapling bundle
-        if spends.is_empty() {
-            return Ok(self.with_sapling_bundle(sapling_bundle));
-        }
-
-        let p_g = SPENDING_KEY_GENERATOR;
         let mut all_signatures_valid: bool = true;
-        for (i, ((spend_auth_sig, spendinfo), spend)) in sign
-            .into_iter()
-            .zip(spends.into_iter())
-            .zip(shielded_spends.into_iter())
-            .enumerate()
-        {
-            let ak = spendinfo.proofkey.ak;
-            let rk = PublicKey(ak.into()).randomize(spendinfo.alpha, SPENDING_KEY_GENERATOR);
 
-            all_signatures_valid &= rk.verify(&self.sapling_sighash(), &spend_auth_sig, p_g);
+        //if we have no spends we can just skip
+        // applying the signutes and verifying
+        if !spends.is_empty() {
+            let p_g = SPENDING_KEY_GENERATOR;
+            for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
+                .into_iter()
+                .zip(spends.into_iter())
+                .zip(shielded_spends.into_iter())
+                .enumerate()
+            {
+                let ak = spendinfo.proofkey.ak;
+                let rk = PublicKey(ak.into()).randomize(spendinfo.alpha, SPENDING_KEY_GENERATOR);
 
-            let spend = sapling::SpendDescription {
-                spend_auth_sig,
-                cv: spend.cv,
-                anchor: spend.anchor,
-                nullifier: spend.nullifier,
-                rk,
-                zkproof: spend.zkproof,
-            };
-            sapling_bundle.shielded_spends.push(spend);
+                let valid = rk.verify(&self.sapling_sighash(), &spend_auth_sig, p_g);
+
+                log::info!("Verification of sapling spend signature: #{}", valid);
+                all_signatures_valid &= valid;
+
+                let spend = sapling::SpendDescription {
+                    spend_auth_sig,
+                    cv: spend.cv,
+                    anchor: spend.anchor,
+                    nullifier: spend.nullifier,
+                    rk,
+                    zkproof: spend.zkproof,
+                };
+                sapling_bundle.shielded_spends.push(spend);
+            }
+            /*
+            let mut spends: Vec<_> = self.spends.clone().into_iter().enumerate().collect();
+            let mut all_signatures_valid: bool = true;
+            for (i, (_, spend)) in spends.into_iter().enumerate() {
+                let rk = PublicKey(spend.proofkey.ak.into()).randomize(spend.alpha,SPENDING_KEY_GENERATOR);
+                all_signatures_valid &= rk.verify(&self.sighash, &sign[i], p_g);
+                self.mtx.shielded_spends[i].spend_auth_sig = Some(sign[i]);
+            }
+             */
         }
-        /*
-        let mut spends: Vec<_> = self.spends.clone().into_iter().enumerate().collect();
-        let mut all_signatures_valid: bool = true;
-        for (i, (_, spend)) in spends.into_iter().enumerate() {
-            let rk = PublicKey(spend.proofkey.ak.into()).randomize(spend.alpha,SPENDING_KEY_GENERATOR);
-            all_signatures_valid &= rk.verify(&self.sighash, &sign[i], p_g);
-            self.mtx.shielded_spends[i].spend_auth_sig = Some(sign[i]);
-        }
-         */
 
         match all_signatures_valid {
             true => {
-                let mut this = self.with_sapling_bundle(sapling_bundle);
+                let mut this = self.with_sapling_bundle(Some(sapling_bundle));
                 this.spends = vec![];
                 this.outputs = vec![];
 
@@ -750,9 +820,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
-                Some(self.transparent_bundle.clone()),
+                self.transparent_bundle.clone(),
                 None,
-                Some(self.sapling_bundle.clone()),
+                self.sapling_bundle.clone(),
                 None,
             )
         })

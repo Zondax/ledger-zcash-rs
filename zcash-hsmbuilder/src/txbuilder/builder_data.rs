@@ -383,10 +383,10 @@ pub fn transparent_script_data_fromtx<A: transparent::Authorization>(
     inputs: &[TransparentInputInfo],
 ) -> Result<Vec<TransparentScriptData>, Error> {
     let mut data = Vec::new();
-    for (i, info) in inputs.iter().enumerate() {
+    for (i, (info, vin)) in inputs.iter().zip(vins).enumerate() {
         let mut prevout = [0u8; 36];
-        prevout[0..32].copy_from_slice(vins[i].prevout.hash().as_ref());
-        prevout[32..36].copy_from_slice(&vins[i].prevout.n().to_le_bytes());
+        prevout[0..32].copy_from_slice(vin.prevout.hash().as_ref());
+        prevout[32..36].copy_from_slice(&vin.prevout.n().to_le_bytes());
 
         let mut script_pubkey = [0u8; 26];
         info.coin.script_pubkey.write(&mut script_pubkey[..])?;
@@ -395,7 +395,7 @@ pub fn transparent_script_data_fromtx<A: transparent::Authorization>(
         value.copy_from_slice(&info.coin.value.to_i64_le_bytes());
 
         let mut sequence = [0u8; 4];
-        sequence.copy_from_slice(&vins[i].sequence.to_le_bytes());
+        sequence.copy_from_slice(&vin.sequence.to_le_bytes());
 
         let ts = TransparentScriptData {
             prevout,
