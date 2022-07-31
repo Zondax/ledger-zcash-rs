@@ -42,6 +42,18 @@ impl From<TxFee> for u64 {
     }
 }
 
+impl From<TxFee> for Amount {
+    fn from(fee: TxFee) -> Self {
+        let fee_n = fee.into();
+
+        match fee {
+            TxFee::Thousand => Amount::from_u64(fee_n),
+            TxFee::TenThousand => Amount::from_u64(fee_n),
+        }
+        .expect("fee convert to amount")
+    }
+}
+
 impl TryFrom<usize> for TxFee {
     type Error = ();
 
@@ -334,16 +346,19 @@ impl Builder {
     /// padding with dummy outputs if necessary.
     /// See <https://github.com/zcash/zcash/issues/3615>
     fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
-        let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
+        if !self.sapling_spends.is_empty() {
+            let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
-        for _ in 0..dummies {
-            self.add_sapling_output(
-                None,
-                random_payment_address(rng),
-                Amount::from_u64(0).unwrap(),
-                None,
-            )?;
+            for _ in 0..dummies {
+                self.add_sapling_output(
+                    None,
+                    random_payment_address(rng),
+                    Amount::from_u64(0).unwrap(),
+                    None,
+                )?;
+            }
         }
+
         Ok(self)
     }
 
@@ -357,6 +372,84 @@ impl Builder {
 }
 
 impl Builder {
+    fn calculate_change(&self, fee: Amount) -> Amount {
+        let tin_values = self.transparent_inputs.iter().map(|tin| tin.value);
+
+        let spends_values = self
+            .sapling_spends
+            .iter()
+            .flat_map(|spend| Amount::from_u64(spend.note.value).ok());
+
+        let tout_amounts = self.transaprent_outputs.iter().map(|tout| tout.value);
+
+        let soutputs_values = self.sapling_outputs.iter().map(|out| out.value);
+
+        let inputs = tin_values
+            .chain(spends_values)
+            .try_fold(Amount::zero(), |acc, x| (acc + x));
+
+        let outputs = tout_amounts
+            .chain(soutputs_values)
+            .try_fold(Amount::zero(), |acc, x| (acc + x));
+
+        if let (Some(balance), Some(expense)) = (inputs, outputs) {
+            (balance - expense - fee).unwrap_or_else(Amount::zero)
+        } else {
+            Amount::zero()
+        }
+    }
+
+    /// This takes care of setting up an output for a change address if necessary
+    ///
+    /// When a change output is necessary: if there's any leftover currency from summing all
+    /// the inputs and removing all the outputs and the fee.
+    ///
+    /// Rules for determining change address, in order of preference:
+    ///
+    /// * use specified address if present
+    /// * use address of first sapling spend if present
+    /// * use address of first transparent input
+    ///
+    /// The above rules are enough to cover all cases, if all cases fail
+    /// then there are no inputs to the transaction
+    fn setup_change(&mut self, fee: TxFee) -> Result<&mut Self, BuilderError> {
+        let value = self.calculate_change(fee.into());
+
+        if value != Amount::zero() {
+            if let Some((ovk, addr)) = self.change_address.as_ref() {
+                let output = DataShieldedOutput {
+                    address: addr.clone(),
+                    value,
+                    ovk: Some(ovk.clone()),
+                    memo: None,
+                };
+
+                self.sapling_outputs.push(output);
+            } else if let &[spend, ..] = &self.sapling_spends.as_slice() {
+                let output = DataShieldedOutput {
+                    address: spend.address(),
+                    value,
+                    ovk: None,
+                    memo: None,
+                };
+
+                self.sapling_outputs.push(output);
+            } else if let &[tin, ..] = &self.transparent_inputs.as_slice() {
+                let output = DataTransparentOutput {
+                    value,
+                    script_pubkey: tin.script.clone(),
+                };
+
+                self.transaprent_outputs.push(output);
+            } else {
+                //if change is <0 we could end up here
+                return Err(BuilderError::InvalidAmount);
+            }
+        }
+
+        Ok(self)
+    }
+
     fn into_data_input(self, fee: TxFee) -> DataInput {
         DataInput {
             txfee: fee.into(),
@@ -395,6 +488,7 @@ impl Builder {
         E::Error: std::error::Error,
     {
         let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
+        self.setup_change(fee)?;
         self.pad_sapling_outputs(rng)?;
 
         let mut hsmbuilder =
