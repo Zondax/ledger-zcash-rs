@@ -243,7 +243,8 @@ pub struct DataShieldedSpend {
 }
 
 impl DataShieldedSpend {
-    fn address(&self) -> PaymentAddress {
+    /// Reetrieve the PaymentAddress that the note was paid to
+    pub fn address(&self) -> PaymentAddress {
         PaymentAddress::from_parts(self.diversifier, self.note.pk_d)
             //if we have a note then pk_d is not the identity
             .expect("pk_d not identity")
