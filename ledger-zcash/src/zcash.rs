@@ -13,3 +13,12 @@ cfg_if::cfg_if! {
         compile_error!("One feature should be enabled between 'zecwallet-compat' and 'normal-zcash'!");
     }
 }
+
+pub fn payment_address_bytes_fmt(
+    this: &primitives::sapling::PaymentAddress,
+    f: &mut std::fmt::Formatter,
+) -> std::fmt::Result {
+    let bytes = this.to_bytes();
+
+    f.debug_tuple("PaymentAddress").field(&bytes).finish()
+}

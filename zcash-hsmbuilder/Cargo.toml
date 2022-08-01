@@ -57,3 +57,4 @@ zecw_proofs = { git = "https://github.com/adityapk00/librustzcash", rev = "7183a
 zecw_note_encryption = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["pre-zip-212"], optional = true, package = "zcash_note_encryption" }
 tokio = { version = "1.6", features = ["sync"] }
 educe = "0.4.19"
+log = "0.4.17"

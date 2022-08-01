@@ -168,10 +168,13 @@ impl<E> ZcashApp<E> {
 
 ///Data needed to handle transparent input for sapling transaction
 ///Contains information needed for both ledger and builder
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct DataTransparentInput {
     ///BIP44 path for transparent input key derivation
     pub path: BIP44Path,
     ///Public key belonging to the secret key (of the BIP44 path)
+    #[educe(Debug(trait = "std::fmt::Display"))]
     pub pk: secp256k1::PublicKey,
     ///UTXO of transparent input
     pub prevout: OutPoint,
@@ -203,6 +206,7 @@ impl DataTransparentInput {
 }
 
 ///Data needed to handle transparent output for sapling transaction
+#[derive(Debug)]
 pub struct DataTransparentOutput {
     ///The transparent output value
     pub value: Amount,
@@ -229,7 +233,7 @@ impl DataTransparentOutput {
 }
 
 ///Data needed to handle shielded spend for sapling transaction
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DataShieldedSpend {
     ///ZIP32 path (last non-constant value)
     pub path: u32,
@@ -280,8 +284,11 @@ impl DataShieldedSpend {
 }
 
 ///Data needed to handle shielded output for sapling transaction
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct DataShieldedOutput {
     ///address of shielded output
+    #[educe(Debug(method = "crate::zcash::payment_address_bytes_fmt"))]
     pub address: PaymentAddress,
     ///value send to that address
     pub value: Amount,
@@ -321,6 +328,7 @@ impl DataShieldedOutput {
 }
 
 ///Data needed for sapling transaction
+#[derive(Debug)]
 pub struct DataInput {
     ///transaction fee.
     /// Note: Ledger only supports fees of 10000 or 1000

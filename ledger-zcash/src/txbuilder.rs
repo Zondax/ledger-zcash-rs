@@ -497,6 +497,7 @@ impl Builder {
             zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.into_data_input(fee);
+        log::info!("Bulding TX with: {:?}", &input);
         app.init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;

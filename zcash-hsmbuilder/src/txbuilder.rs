@@ -525,6 +525,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         let trans_scripts = r.unwrap();
         let hash_input = signature_hash_input_data(&self.transaction_data().unwrap(), SIGHASH_ALL);
+        log::info!("hash input: {:02x?}", hash_input);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
         let spenddata = spend_data_hms_fromtx(
@@ -646,11 +647,13 @@ where
                     },
                 );
 
+                log::info!("Transparent #{} sighash: {:x?}", i, sighash.as_ref());
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
 
                 //2) verify signature
                 if authorization.secp.verify(&msg, &sig, &info.pubkey).is_err() {
-                    return Err(Error::TranspararentSig);
+                    log::error!("Error verifying transparent sig #{}", i);
+                    // return Err(Error::TranspararentSig);
                 }
 
                 // Signature has to have "SIGHASH_ALL" appended to it
