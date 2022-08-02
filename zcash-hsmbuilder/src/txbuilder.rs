@@ -161,11 +161,12 @@ where
     /// Retrieve the sighash of the current builder state
     fn sapling_sighash(&self) -> [u8; 32] {
         let data = self.transaction_data().expect("consensus branch id set");
-        let digest = data.digest(transaction::txid::TxIdDigester);
 
-        let sighash = signature_hash(&data, &SignableInput::Shielded, &digest);
+        let sighash = transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded);
 
-        *sighash.as_ref()
+        let mut array = [0; 32];
+        array.copy_from_slice(&sighash.as_ref()[..32]);
+        array
     }
 }
 
@@ -498,11 +499,15 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         // Add a binding signature if needed
         if binding_sig_needed {
-            let sighash = self.sapling_sighash();
+            let sapling_sighash = self.sapling_sighash();
 
             self.binding_sig = Some(
                 prover
-                    .binding_sig(&mut ctx, self.sapling_bundle().value_balance, &sighash)
+                    .binding_sig(
+                        &mut ctx,
+                        self.sapling_bundle().value_balance,
+                        &sapling_sighash,
+                    )
                     .map_err(|()| Error::BindingSig)?,
             );
         } else {
@@ -653,7 +658,7 @@ where
                 //2) verify signature
                 if authorization.secp.verify(&msg, &sig, &info.pubkey).is_err() {
                     log::error!("Error verifying transparent sig #{}", i);
-                    // return Err(Error::TranspararentSig);
+                    return Err(Error::TranspararentSig);
                 }
 
                 // Signature has to have "SIGHASH_ALL" appended to it
@@ -774,7 +779,14 @@ where
                 let ak = spendinfo.proofkey.ak;
                 let rk = PublicKey(ak.into()).randomize(spendinfo.alpha, SPENDING_KEY_GENERATOR);
 
-                let valid = rk.verify(&sighash, &spend_auth_sig, p_g);
+                let message = {
+                    let mut array = [0; 64];
+                    array[..32].copy_from_slice(&rk.0.to_bytes());
+                    array[32..].copy_from_slice(&sighash[..]);
+                    array
+                };
+
+                let valid = rk.verify(&message, &spend_auth_sig, p_g);
 
                 log::info!("Verification of sapling spend signature: #{}", valid);
                 all_signatures_valid &= valid;
