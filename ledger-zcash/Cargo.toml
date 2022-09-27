@@ -43,7 +43,7 @@ ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
 
 #zcash
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false, version = "0.3" }
+zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
 zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
 
 #zecwallet-compat
