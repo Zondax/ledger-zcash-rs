@@ -146,7 +146,7 @@ impl SaplingOutput {
 
             let ock = Key::from_slice(&randbytes[0..32]);
             let out_ciphertext = ChaCha20Poly1305::new(ock)
-                .encrypt(&Nonce::from_slice(&[0u8; 12]), &randbytes[32..])
+                .encrypt(Nonce::from_slice(&[0u8; 12]), &randbytes[32..])
                 .unwrap();
 
             assert_eq!(out_ciphertext.len(), OUT_CIPHERTEXT_SIZE);

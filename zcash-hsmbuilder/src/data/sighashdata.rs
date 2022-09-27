@@ -174,7 +174,7 @@ where
         data.extend_from_slice(s_spend.anchor.to_repr().as_ref());
         data.extend_from_slice(s_spend.nullifier.as_ref());
         s_spend.rk.write(&mut data).unwrap();
-        data.extend_from_slice(&s_spend.zkproof.as_ref());
+        data.extend_from_slice(s_spend.zkproof.as_ref());
     }
 
     Blake2bParams::new()
@@ -219,12 +219,12 @@ where
             if let Some((vin, vout)) = tx
                 .transparent_bundle()
                 .map(|b| (b.vin.as_slice(), b.vout.as_slice()))
-                .or_else(|| Some((&[], &[])))
+                .or(Some((&[], &[])))
             {
                 update_data!(
                     txdata_sighash.prevoutshash,
                     hash_type & SIGHASH_ANYONECANPAY == 0,
-                    prevout_hash(&vin)
+                    prevout_hash(vin)
                 ); //true for sighash_all
 
                 update_data!(
@@ -232,7 +232,7 @@ where
                     hash_type & SIGHASH_ANYONECANPAY == 0
                         && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
                         && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
-                    sequence_hash(&vin)
+                    sequence_hash(vin)
                 ); //true for sighash_all
 
                 if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
@@ -240,7 +240,7 @@ where
                 {
                     txdata_sighash
                         .outputshash
-                        .copy_from_slice(outputs_hash(&vout).as_ref()); //true for sighash all
+                        .copy_from_slice(outputs_hash(vout).as_ref()); //true for sighash all
 
                 //TODO: single output hash? SIGHASH_SINGLE
                 } else {

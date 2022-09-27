@@ -422,7 +422,7 @@ impl Builder {
                 let output = DataShieldedOutput {
                     address: addr.clone(),
                     value,
-                    ovk: Some(ovk.clone()),
+                    ovk: Some(*ovk),
                     memo: None,
                 };
 

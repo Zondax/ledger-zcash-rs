@@ -772,8 +772,8 @@ where
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
                 .into_iter()
-                .zip(spends.into_iter())
-                .zip(shielded_spends.into_iter())
+                .zip(spends.iter())
+                .zip(shielded_spends.iter())
                 .enumerate()
             {
                 let ak = spendinfo.proofkey.ak;
