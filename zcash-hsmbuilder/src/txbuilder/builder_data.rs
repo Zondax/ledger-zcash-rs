@@ -3,32 +3,43 @@
 
 use std::io::{self, Write};
 
-use crypto_api_chachapoly::ChachaPolyIetf;
-use group::GroupEncoding;
-use rand::{CryptoRng, RngCore};
-use sha2::{Digest, Sha256};
-use zcash_primitives::{
-    consensus,
-    keys::OutgoingViewingKey,
-    legacy::{Script, TransparentAddress},
-    memo::MemoBytes as Memo,
-    merkle_tree::MerklePath,
-    note_encryption::SaplingNoteEncryption,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
-    sapling::Node,
-    transaction::{
-        components::{Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
-        signature_hash_data, SignableInput, TransactionData, SIGHASH_ALL,
+use crate::zcash::{
+    note_encryption::NoteEncryption,
+    primitives::{
+        consensus,
+        keys::OutgoingViewingKey,
+        legacy::{Script, TransparentAddress},
+        memo::MemoBytes as Memo,
+        merkle_tree::MerklePath,
+        sapling::{
+            note_encryption::sapling_note_encryption, Diversifier, Node, Note, PaymentAddress,
+            ProofGenerationKey, Rseed,
+        },
+        transaction::{
+            self,
+            components::{sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
+            sighash::{signature_hash, SignableInput, SIGHASH_ALL},
+            TransactionData,
+        },
     },
 };
+use chacha20poly1305::{
+    aead::{Aead, NewAead},
+    ChaCha20Poly1305, Key, Nonce,
+};
+use group::{cofactor::CofactorGroup, GroupEncoding};
+use jubjub::SubgroupPoint;
+use rand::{CryptoRng, RngCore};
+use sha2::{Digest, Sha256};
 
-use crate::{data::HashSeed, errors::Error, txprover::HsmTxProver};
+use crate::{data::HashSeed, errors::Error, txbuilder::hsmauth, txprover::HsmTxProver};
 
 const OUT_PLAINTEXT_SIZE: usize = 32 + // pk_d
     32; // esk
 const OUT_CIPHERTEXT_SIZE: usize = OUT_PLAINTEXT_SIZE + 16;
 
-#[derive(Clone)]
+#[derive(educe::Educe, Clone)]
+#[educe(Debug)]
 pub struct SpendDescriptionInfo {
     //extsk: ExtendedSpendingKey, //change this to path in ledger
     pub diversifier: Diversifier,
@@ -36,6 +47,7 @@ pub struct SpendDescriptionInfo {
     pub alpha: jubjub::Fr,
     //get both from ledger and generate self
     pub merkle_path: MerklePath<Node>,
+    #[educe(Debug(ignore))]
     pub proofkey: ProofGenerationKey,
     //get from ledger
     pub rcv: jubjub::Fr,
@@ -90,13 +102,16 @@ impl SaplingOutput {
         })
     }
 
-    pub fn build<P: HsmTxProver, R: RngCore + CryptoRng>(
+    pub fn build<P: consensus::Parameters, PR: HsmTxProver, R: RngCore + CryptoRng>(
         self,
-        prover: &P,
-        ctx: &mut P::SaplingProvingContext,
+        prover: &PR,
+        ctx: &mut PR::SaplingProvingContext,
         rng: &mut R,
-    ) -> zcash_primitives::transaction::components::OutputDescription {
-        let mut encryptor = SaplingNoteEncryption::new(
+        params: &P,
+    ) -> crate::zcash::primitives::transaction::components::OutputDescription<
+        <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
+    > {
+        let mut encryptor = sapling_note_encryption::<R, P>(
             self.ovk,
             self.note.clone(),
             self.to.clone(),
@@ -116,9 +131,8 @@ impl SaplingOutput {
         let cmu = self.note.cmu();
 
         let enc_ciphertext = encryptor.encrypt_note_plaintext();
-        let mut out_ciphertext;
-        if self.ovk.is_some() {
-            out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu);
+        let out_ciphertext = if self.ovk.is_some() {
+            encryptor.encrypt_outgoing_plaintext(&cv, &cmu, rng)
         } else {
             let seed = self.hashseed.unwrap().0;
             let mut randbytes = [0u8; 32 + OUT_PLAINTEXT_SIZE];
@@ -129,22 +143,22 @@ impl SaplingOutput {
                 let h = sha256.finalize();
                 randbytes[i * 32..(i + 1) * 32].copy_from_slice(&h);
             }
-            let mut ock = [0u8; 32];
-            ock.copy_from_slice(&randbytes[0..32]);
-            let mut input = [0u8; OUT_PLAINTEXT_SIZE];
-            input.copy_from_slice(&randbytes[32..]);
-            out_ciphertext = [0u8; OUT_CIPHERTEXT_SIZE];
-            assert_eq!(
-                ChachaPolyIetf::aead_cipher()
-                    .seal_to(&mut out_ciphertext, &input, &[], ock.as_ref(), &[0u8; 12])
-                    .unwrap(),
-                OUT_CIPHERTEXT_SIZE
-            );
-        }
 
-        let ephemeral_key = (*encryptor.epk()).into();
+            let ock = Key::from_slice(&randbytes[0..32]);
+            let out_ciphertext = ChaCha20Poly1305::new(ock)
+                .encrypt(Nonce::from_slice(&[0u8; 12]), &randbytes[32..])
+                .unwrap();
 
-        zcash_primitives::transaction::components::OutputDescription {
+            assert_eq!(out_ciphertext.len(), OUT_CIPHERTEXT_SIZE);
+
+            let mut array = [0u8; OUT_CIPHERTEXT_SIZE];
+            array.copy_from_slice(&out_ciphertext);
+            array
+        };
+
+        let ephemeral_key = encryptor.epk().to_bytes().into();
+
+        crate::zcash::primitives::transaction::components::OutputDescription {
             cv,
             cmu,
             ephemeral_key,
@@ -155,107 +169,20 @@ impl SaplingOutput {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct TransparentInputInfo {
     pub pubkey: secp256k1::PublicKey,
     pub coin: TxOut,
 }
 
-pub struct TransparentInputs {
-    pub secp: secp256k1::Secp256k1<secp256k1::VerifyOnly>,
-    pub inputs: Vec<TransparentInputInfo>,
-}
-
-impl Default for TransparentInputs {
-    fn default() -> Self {
-        TransparentInputs {
-            secp: secp256k1::Secp256k1::gen_new(),
-            inputs: Default::default(),
-        }
-    }
-}
-
-impl TransparentInputs {
-    pub fn push(
-        &mut self,
-        mtx: &mut TransactionData,
-        pubkey: secp256k1::PublicKey,
-        utxo: OutPoint,
-        coin: TxOut,
-    ) -> Result<(), Error> {
-        if coin.value.is_negative() {
-            return Err(Error::InvalidAmount);
-        }
-        match coin.script_pubkey.address() {
-            Some(TransparentAddress::PublicKey(hash)) => {
-                use ripemd160::Ripemd160;
-                use sha2::{Digest, Sha256};
-                if hash[..] != Ripemd160::digest(&Sha256::digest(&pubkey.serialize()))[..] {
-                    return Err(Error::InvalidAddressHash);
-                }
-            }
-            _ => return Err(Error::InvalidAddressFormat),
-        }
-
-        mtx.vin.push(TxIn::new(utxo));
-        self.inputs.push(TransparentInputInfo { pubkey, coin });
-
-        Ok(())
-    }
-
-    pub fn value_sum(&self) -> Amount {
-        {
-            self.inputs
-                .iter()
-                .map(|input| input.coin.value)
-                .sum::<Amount>()
-        }
-    }
-
-    pub fn apply_signatures(
-        &self,
-        signatures: Vec<secp256k1::Signature>,
-        mtx: &mut TransactionData,
-        consensus_branch_id: consensus::BranchId,
-    ) -> Result<(), Error> {
-        if signatures.len() != self.inputs.len() {
-            return Err(Error::TranspararentSig);
-        }
-        let mut sighash = [0u8; 32];
-
-        for (i, info) in self.inputs.iter().enumerate() {
-            sighash.copy_from_slice(&signature_hash_data(
-                mtx,
-                consensus_branch_id,
-                SIGHASH_ALL,
-                SignableInput::transparent(i, &info.coin.script_pubkey, info.coin.value),
-            ));
-
-            let msg = secp256k1::Message::from_slice(&sighash).expect("32 bytes");
-            let sig = signatures[i];
-            let pk = info.pubkey;
-            if self.secp.verify(&msg, &sig, &pk).is_err() {
-                return Err(Error::TranspararentSig);
-            }
-            // Signature has to have "SIGHASH_ALL" appended to it
-            let mut sig_bytes: Vec<u8> = sig.serialize_der()[..].to_vec();
-            sig_bytes.extend(&[SIGHASH_ALL as u8]);
-
-            // P2PKH scriptSig
-            mtx.vin[i].script_sig =
-                Script::default() << &sig_bytes[..] << &info.pubkey.serialize()[..];
-        }
-        Ok(())
-    }
-}
-
 /// Metadata about a transaction created by a [`crate::Builder`].
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct TransactionMetadata {
+pub struct SaplingMetadata {
     pub(crate) spend_indices: Vec<usize>,
     pub(crate) output_indices: Vec<usize>,
 }
 
-impl TransactionMetadata {
+impl SaplingMetadata {
     pub fn new() -> Self {
         Default::default()
     }
@@ -280,6 +207,30 @@ impl TransactionMetadata {
     /// [`OutputDescription`] in the transaction.
     pub fn output_index(&self, n: usize) -> Option<usize> {
         self.output_indices.get(n).copied()
+    }
+}
+
+impl From<sapling::builder::SaplingMetadata> for SaplingMetadata {
+    fn from(txmeta: sapling::builder::SaplingMetadata) -> Self {
+        let mut spends = vec![];
+        let mut outputs = vec![];
+
+        let mut i = 0;
+        while let Some(ix) = txmeta.spend_index(i) {
+            spends.push(ix);
+            i += 1;
+        }
+
+        i = 0;
+        while let Some(ix) = txmeta.output_index(i) {
+            outputs.push(ix);
+            i += 1;
+        }
+
+        Self {
+            spend_indices: spends,
+            output_indices: outputs,
+        }
     }
 }
 
@@ -324,7 +275,7 @@ pub struct SpendDescription {
 
 impl SpendDescription {
     pub fn from(
-        info: &zcash_primitives::transaction::components::SpendDescription,
+        info: &sapling::SpendDescription<hsmauth::sapling::Unauthorized>,
     ) -> SpendDescription {
         SpendDescription {
             cv: info.cv.to_bytes(),
@@ -354,12 +305,22 @@ pub struct OutputDescription {
     pub zkproof: [u8; GROTH_PROOF_SIZE],
 }
 
-impl From<&zcash_primitives::transaction::components::OutputDescription> for OutputDescription {
-    fn from(from: &zcash_primitives::transaction::components::OutputDescription) -> Self {
+impl
+    From<
+        &crate::zcash::primitives::transaction::components::OutputDescription<
+            <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
+        >,
+    > for OutputDescription
+{
+    fn from(
+        from: &crate::zcash::primitives::transaction::components::OutputDescription<
+            <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
+        >,
+    ) -> Self {
         Self {
             cv: from.cv.to_bytes(),
             cmu: from.cmu.to_bytes(),
-            ephemeral_key: from.ephemeral_key.to_bytes(),
+            ephemeral_key: from.ephemeral_key.0,
             enc_ciphertext: from.enc_ciphertext,
             out_ciphertext: from.out_ciphertext,
             zkproof: from.zkproof,
@@ -380,7 +341,7 @@ impl OutputDescription {
 
 /// Converts a zcash_primitives' SpendDescription to the HSM-compatible format
 pub fn spend_data_hms_fromtx(
-    input: &[zcash_primitives::transaction::components::SpendDescription],
+    input: &[sapling::SpendDescription<hsmauth::sapling::Unauthorized>],
 ) -> Vec<SpendDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
@@ -392,7 +353,7 @@ pub fn spend_data_hms_fromtx(
 
 /// Converts a zcash_primitives' OutputDescription to the HSM-compatible format
 pub fn output_data_hsm_fromtx(
-    input: &[zcash_primitives::transaction::components::OutputDescription],
+    input: &[sapling::OutputDescription<sapling::GrothProofBytes>],
 ) -> Vec<OutputDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
@@ -417,15 +378,15 @@ pub fn spend_old_data_fromtx(data: &[SpendDescriptionInfo]) -> Vec<NullifierInpu
 
 /// Generates a list of [`TransparentScriptData`] from
 /// a list of [`TransparentInputInfo`] and `TransactionData`
-pub fn transparent_script_data_fromtx(
-    tx: &TransactionData,
+pub fn transparent_script_data_fromtx<A: transparent::Authorization>(
+    vins: &[TxIn<A>],
     inputs: &[TransparentInputInfo],
 ) -> Result<Vec<TransparentScriptData>, Error> {
     let mut data = Vec::new();
-    for (i, info) in inputs.iter().enumerate() {
+    for (i, (info, vin)) in inputs.iter().zip(vins).enumerate() {
         let mut prevout = [0u8; 36];
-        prevout[0..32].copy_from_slice(tx.vin[i].prevout.hash().as_ref());
-        prevout[32..36].copy_from_slice(&tx.vin[i].prevout.n().to_le_bytes());
+        prevout[0..32].copy_from_slice(vin.prevout.hash().as_ref());
+        prevout[32..36].copy_from_slice(&vin.prevout.n().to_le_bytes());
 
         let mut script_pubkey = [0u8; 26];
         info.coin.script_pubkey.write(&mut script_pubkey[..])?;
@@ -434,7 +395,7 @@ pub fn transparent_script_data_fromtx(
         value.copy_from_slice(&info.coin.value.to_i64_le_bytes());
 
         let mut sequence = [0u8; 4];
-        sequence.copy_from_slice(&tx.vin[i].sequence.to_le_bytes());
+        sequence.copy_from_slice(&vin.sequence.to_le_bytes());
 
         let ts = TransparentScriptData {
             prevout,

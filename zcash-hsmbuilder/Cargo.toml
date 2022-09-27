@@ -1,7 +1,7 @@
 [package]
 name = "zcash-hsmbuilder"
 description = "Library to build transactions for HSM apps"
-version = "0.3.0"
+version = "0.4.0"
 license = "Apache-2.0"
 authors = ["Zondax GmbH <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
@@ -15,30 +15,46 @@ autobenches = false
 [lib]
 name = "zcash_hsmbuilder"
 
+[features]
+default = ["normal-zcash"]
+normal-zcash = [ "zcash_primitives", "zcash_proofs" ]
+zecwallet-compat = [ "zecw_primitives", "zecw_proofs", "zecw_note_encryption" ]
+#local tx prover features
+bundled-prover = ["wagyu-zcash-parameters"]
+local-prover = []
+
 [dependencies]
-jubjub = { version = "0.5.1", default-features = false }
-bellman = { version = "0.8", default-features = false, features = ["groth16"] }
-blake2b_simd = "0.5"
-bls12_381 = { version = "0.3.1" }
+bellman = { version = "0.13", default-features = false, features = ["groth16"] }
+blake2b_simd = "1"
+bls12_381 = { version = "0.7" }
 byteorder = "1.4.3"
-directories = { version = "3", optional = true }
-ff = { version = "0.8.0" }
-lazy_static = "1"
-minreq = { version = "2", features = ["https"], optional = true }
-pairing = { version = "0.22" }
-rand_core = "0.5"
+cfg-if = "1.0.0"
+chacha20poly1305 = "0.9"
+ff = "0.12"
+group = "0.12"
 hex = { version = "0.4", default-features = false }
-group = "0.8.0"
-rand = { version = "0.7.3", default-features = false }
-crypto_api_chachapoly = "0.5.0"
-secp256k1 = { version = "0.20" }
+jubjub = { version = "0.9", default-features = false }
+lazy_static = "1"
+pairing = { version = "0.22" }
+rand = { version = "0.8", default-features = false }
+rand_core = "0.6"
+ripemd = "0.1"
+secp256k1 = { version = "0.21" }
 sha2 = "0.9"
-ripemd160 = "0.9"
 
 serde_derive = "1"
 serde = { version = "1", features = ["derive"] }
 
 #zcash
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-zcash_primitives = { version = "0.5", features = ["transparent-inputs"] }
-zcash_proofs = { version = "0.5", features = ["multicore"] }
+zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
+zcash_proofs = { version = "0.6", features = ["multicore"], optional = true }
+zcash_note_encryption = { version = "0.1", features = ["pre-zip-212"] }
+
+#zecwallet-compat
+zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+zecw_proofs = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["multicore"], optional = true, package = "zcash_proofs" }
+zecw_note_encryption = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["pre-zip-212"], optional = true, package = "zcash_note_encryption" }
+tokio = { version = "1.6", features = ["sync"] }
+educe = "0.4.19"
+log = "0.4.17"

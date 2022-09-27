@@ -4,14 +4,15 @@ use crate::HashSeed;
 use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
-use zcash_primitives::keys::OutgoingViewingKey;
-use zcash_primitives::legacy::Script;
-use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::{IncrementalWitness, MerklePath};
-use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, Rseed};
-use zcash_primitives::redjubjub::Signature;
-use zcash_primitives::sapling::Node;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
+
+use crate::zcash::primitives::{
+    keys::OutgoingViewingKey,
+    legacy::Script,
+    memo::MemoBytes as Memo,
+    merkle_tree::{IncrementalWitness, MerklePath},
+    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
+    transaction::components::{Amount, OutPoint},
+};
 
 pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>
 where

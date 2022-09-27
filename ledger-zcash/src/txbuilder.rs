@@ -1,21 +1,22 @@
 use std::convert::TryFrom;
 
-use arrayvec::ArrayVec;
-use rand_core::{CryptoRng, RngCore};
-use zcash_hsmbuilder::{txbuilder::TransactionMetadata, txprover::HsmTxProver};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
     legacy::TransparentAddress,
     memo::MemoBytes,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress},
-    sapling::Node,
+    sapling::{Diversifier, Node, Note, PaymentAddress},
     transaction::{
         components::{Amount, OutPoint, TxOut},
         Transaction,
     },
 };
+use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
+
+use arrayvec::ArrayVec;
+use rand_core::{CryptoRng, RngCore};
+use tokio::sync::mpsc;
 use zx_bip44::BIP44Path;
 
 use crate::{
@@ -38,6 +39,18 @@ impl From<TxFee> for u64 {
             TxFee::Thousand => 1000,
             TxFee::TenThousand => 10_000,
         }
+    }
+}
+
+impl From<TxFee> for Amount {
+    fn from(fee: TxFee) -> Self {
+        let fee_n = fee.into();
+
+        match fee {
+            TxFee::Thousand => Amount::from_u64(fee_n),
+            TxFee::TenThousand => Amount::from_u64(fee_n),
+        }
+        .expect("fee convert to amount")
     }
 }
 
@@ -72,6 +85,7 @@ pub struct Builder {
     transaprent_outputs: ArrayVec<DataTransparentOutput, 5>,
     sapling_spends: ArrayVec<DataShieldedSpend, 5>,
     sapling_outputs: ArrayVec<DataShieldedOutput, 5>,
+    change_address: Option<(OutgoingViewingKey, PaymentAddress)>,
 }
 
 impl TryFrom<DataInput> for Builder {
@@ -156,7 +170,7 @@ pub enum BuilderError {
     InvalidOVKHashSeed(usize),
 
     /// Error occured when building tx for ledger
-    #[error("error communicating with ledger during transaction building")]
+    #[error("error occured while building the final tx from the ledger data")]
     FailedToBuildTx,
 
     /// Error occured when signing tx with ledger
@@ -331,22 +345,113 @@ impl Builder {
     /// If there are any shielded inputs, always have at least two shielded outputs,
     /// padding with dummy outputs if necessary.
     /// See <https://github.com/zcash/zcash/issues/3615>
+    ///
+    /// Same applies when we only have 1 output
     fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
-        let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
+        if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
+            let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
-        for _ in 0..dummies {
-            self.add_sapling_output(
-                None,
-                random_payment_address(rng),
-                Amount::from_u64(0).unwrap(),
-                None,
-            )?;
+            for _ in 0..dummies {
+                self.add_sapling_output(
+                    None,
+                    random_payment_address(rng),
+                    Amount::from_u64(0).unwrap(),
+                    None,
+                )?;
+            }
         }
+
         Ok(self)
+    }
+
+    /// Sets the Sapling address to which any change will be sent.
+    ///
+    /// By default, change is sent to the Sapling address corresponding to the first note
+    /// being spent (i.e. the first call to [`Builder::add_sapling_spend`]).
+    pub fn send_change_to(&mut self, ovk: OutgoingViewingKey, to: PaymentAddress) {
+        self.change_address = Some((ovk, to))
     }
 }
 
 impl Builder {
+    fn calculate_change(&self, fee: Amount) -> Amount {
+        let tin_values = self.transparent_inputs.iter().map(|tin| tin.value);
+
+        let spends_values = self
+            .sapling_spends
+            .iter()
+            .flat_map(|spend| Amount::from_u64(spend.note.value).ok());
+
+        let tout_amounts = self.transaprent_outputs.iter().map(|tout| tout.value);
+
+        let soutputs_values = self.sapling_outputs.iter().map(|out| out.value);
+
+        let inputs = tin_values
+            .chain(spends_values)
+            .try_fold(Amount::zero(), |acc, x| (acc + x));
+
+        let outputs = tout_amounts
+            .chain(soutputs_values)
+            .try_fold(Amount::zero(), |acc, x| (acc + x));
+
+        if let (Some(balance), Some(expense)) = (inputs, outputs) {
+            (balance - expense - fee).unwrap_or_else(Amount::zero)
+        } else {
+            Amount::zero()
+        }
+    }
+
+    /// This takes care of setting up an output for a change address if necessary
+    ///
+    /// When a change output is necessary: if there's any leftover currency from summing all
+    /// the inputs and removing all the outputs and the fee.
+    ///
+    /// Rules for determining change address, in order of preference:
+    ///
+    /// * use specified address if present
+    /// * use address of first sapling spend if present
+    /// * use address of first transparent input
+    ///
+    /// The above rules are enough to cover all cases, if all cases fail
+    /// then there are no inputs to the transaction
+    fn setup_change(&mut self, fee: TxFee) -> Result<&mut Self, BuilderError> {
+        let value = self.calculate_change(fee.into());
+
+        if value != Amount::zero() {
+            if let Some((ovk, addr)) = self.change_address.as_ref() {
+                let output = DataShieldedOutput {
+                    address: addr.clone(),
+                    value,
+                    ovk: Some(*ovk),
+                    memo: None,
+                };
+
+                self.sapling_outputs.push(output);
+            } else if let &[spend, ..] = &self.sapling_spends.as_slice() {
+                let output = DataShieldedOutput {
+                    address: spend.address(),
+                    value,
+                    ovk: None,
+                    memo: None,
+                };
+
+                self.sapling_outputs.push(output);
+            } else if let &[tin, ..] = &self.transparent_inputs.as_slice() {
+                let output = DataTransparentOutput {
+                    value,
+                    script_pubkey: tin.script.clone(),
+                };
+
+                self.transaprent_outputs.push(output);
+            } else {
+                //if change is <0 we could end up here
+                return Err(BuilderError::InvalidAmount);
+            }
+        }
+
+        Ok(self)
+    }
+
     fn into_data_input(self, fee: TxFee) -> DataInput {
         DataInput {
             txfee: fee.into(),
@@ -375,7 +480,8 @@ impl Builder {
         rng: &mut R,
         height: u32,
         branch: consensus::BranchId,
-    ) -> Result<(Transaction, TransactionMetadata), BuilderError>
+        progress_notifier: Option<mpsc::Sender<usize>>,
+    ) -> Result<(Transaction, SaplingMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
         TX: HsmTxProver + Send + Sync,
@@ -384,12 +490,14 @@ impl Builder {
         E::Error: std::error::Error,
     {
         let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
+        self.setup_change(fee)?;
         self.pad_sapling_outputs(rng)?;
 
         let mut hsmbuilder =
             zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.into_data_input(fee);
+        log::info!("Bulding TX with: {:?}", &input);
         app.init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;
@@ -473,7 +581,7 @@ impl Builder {
 
         // building finished, time to have the ledger sign everything
         let ledger_data = hsmbuilder
-            .build(branch, prover)
+            .build_with_progress_notifier(branch, prover, progress_notifier)
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
         let _signed_hash = app
@@ -502,13 +610,12 @@ impl Builder {
         }
 
         //apply them in the builder
-        hsmbuilder
-            .add_signatures_transparant(tsigs, branch)
-            .map_err(|_| BuilderError::UnableToApplyTransparentSigs)?;
-        hsmbuilder
+        let hsmbuilder = hsmbuilder
             .add_signatures_spend(zsigs)
             .map_err(|_| BuilderError::UnableToApplySaplingSigs)?;
-
+        let hsmbuilder = hsmbuilder
+            .add_signatures_transparent(tsigs)
+            .map_err(|_| BuilderError::UnableToApplyTransparentSigs)?;
         hsmbuilder
             .finalize()
             .map_err(|_| BuilderError::FinalizationError)

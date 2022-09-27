@@ -19,42 +19,42 @@
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
-extern crate hex;
+use std::{convert::TryFrom, path::Path, str};
 
-use std::convert::TryFrom;
-use std::path::Path;
-use std::str;
-
-use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
 use ledger_zondax_generic::{
     App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version,
 };
 
-use zcash_primitives::consensus::{self, Parameters};
-use zcash_primitives::keys::OutgoingViewingKey;
-use zcash_primitives::legacy::Script;
-use zcash_primitives::memo::MemoBytes as Memo;
-use zcash_primitives::merkle_tree::MerklePath;
-use zcash_primitives::primitives::{Diversifier, Note, Nullifier, Rseed};
-use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey};
-use zcash_primitives::redjubjub::Signature;
-use zcash_primitives::sapling::Node;
-use zcash_primitives::transaction::components::{Amount, OutPoint};
-use zcash_primitives::transaction::Transaction;
-use zx_bip44::BIP44Path;
+use crate::zcash::primitives::{
+    consensus::{self, Parameters},
+    keys::OutgoingViewingKey,
+    legacy::Script,
+    memo::MemoBytes as Memo,
+    merkle_tree::MerklePath,
+    sapling::{
+        redjubjub::Signature, Diversifier, Node, Note, Nullifier, PaymentAddress,
+        ProofGenerationKey, Rseed,
+    },
+    transaction::{
+        components::{Amount, OutPoint},
+        Transaction,
+    },
+};
 
-use byteorder::{LittleEndian, WriteBytesExt};
 use zcash_hsmbuilder::{
     data::{
         HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData,
         SpendBuilderInfo, TinData, ToutData, TransparentInputBuilderInfo,
         TransparentOutputBuilderInfo,
     },
-    txbuilder::TransactionMetadata,
+    txbuilder::SaplingMetadata,
 };
 
+use byteorder::{LittleEndian, WriteBytesExt};
+use group::GroupEncoding;
 use sha2::{Digest, Sha256};
+use zx_bip44::BIP44Path;
 
 use crate::builder::{Builder, BuilderError};
 
@@ -168,10 +168,13 @@ impl<E> ZcashApp<E> {
 
 ///Data needed to handle transparent input for sapling transaction
 ///Contains information needed for both ledger and builder
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct DataTransparentInput {
     ///BIP44 path for transparent input key derivation
     pub path: BIP44Path,
     ///Public key belonging to the secret key (of the BIP44 path)
+    #[educe(Debug(trait = "std::fmt::Display"))]
     pub pk: secp256k1::PublicKey,
     ///UTXO of transparent input
     pub prevout: OutPoint,
@@ -203,6 +206,7 @@ impl DataTransparentInput {
 }
 
 ///Data needed to handle transparent output for sapling transaction
+#[derive(Debug)]
 pub struct DataTransparentOutput {
     ///The transparent output value
     pub value: Amount,
@@ -229,7 +233,7 @@ impl DataTransparentOutput {
 }
 
 ///Data needed to handle shielded spend for sapling transaction
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DataShieldedSpend {
     ///ZIP32 path (last non-constant value)
     pub path: u32,
@@ -243,7 +247,8 @@ pub struct DataShieldedSpend {
 }
 
 impl DataShieldedSpend {
-    fn address(&self) -> PaymentAddress {
+    /// Reetrieve the PaymentAddress that the note was paid to
+    pub fn address(&self) -> PaymentAddress {
         PaymentAddress::from_parts(self.diversifier, self.note.pk_d)
             //if we have a note then pk_d is not the identity
             .expect("pk_d not identity")
@@ -279,8 +284,11 @@ impl DataShieldedSpend {
 }
 
 ///Data needed to handle shielded output for sapling transaction
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct DataShieldedOutput {
     ///address of shielded output
+    #[educe(Debug(method = "crate::zcash::payment_address_bytes_fmt"))]
     pub address: PaymentAddress,
     ///value send to that address
     pub value: Amount,
@@ -320,6 +328,7 @@ impl DataShieldedOutput {
 }
 
 ///Data needed for sapling transaction
+#[derive(Debug)]
 pub struct DataInput {
     ///transaction fee.
     /// Note: Ledger only supports fees of 10000 or 1000
@@ -523,7 +532,8 @@ where
         input: DataInput,
         parameters: P,
         branch: consensus::BranchId,
-    ) -> Result<(Transaction, TransactionMetadata), LedgerAppError<E::Error>> {
+        target_height: u32,
+    ) -> Result<(Transaction, SaplingMetadata), LedgerAppError<E::Error>> {
         log::info!("adding transaction data to builder");
         let fee = input.txfee;
 
@@ -535,6 +545,10 @@ where
             Path::new("../params/sapling-output.params"),
         );
         log::info!("building the transaction");
+
+        // Set up a channel to recieve updates on the progress of building the transaction.
+        let (tx, _) = tokio::sync::mpsc::channel(10);
+
         let txdata = builder
             .build(
                 self,
@@ -542,8 +556,9 @@ where
                 &prover,
                 fee,
                 &mut rand_core::OsRng,
-                0,
+                target_height,
                 branch,
+                Some(tx),
             )
             .await
             .map_err(|e| LedgerAppError::AppSpecific(0, e.to_string()))?;
@@ -1052,7 +1067,7 @@ where
     ///Get a transparent signature from the ledger
     pub async fn get_transparent_signature(
         &self,
-    ) -> Result<secp256k1::Signature, LedgerAppError<E::Error>> {
+    ) -> Result<secp256k1::ecdsa::Signature, LedgerAppError<E::Error>> {
         let command = APDUCommand {
             cla: Self::CLA,
             ins: INS_EXTRACT_TRANSSIG,
@@ -1081,7 +1096,7 @@ where
 
         log::info!("Received response {}", response_data.len());
 
-        secp256k1::Signature::from_compact(&response_data[0..SIG_SIZE])
+        secp256k1::ecdsa::Signature::from_compact(&response_data[0..SIG_SIZE])
             .map_err(|_| LedgerAppError::InvalidSignature)
     }
 

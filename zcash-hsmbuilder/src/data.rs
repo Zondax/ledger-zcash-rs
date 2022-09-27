@@ -7,17 +7,15 @@ use neon_bridge::*;
 pub mod sighashdata;
 use sighashdata::TransactionDataSighash;
 
-use serde::{Deserialize, Serialize};
-use zcash_primitives::{
+use crate::zcash::primitives::{
     keys::OutgoingViewingKey,
     legacy::Script,
     memo::MemoBytes as Memo,
     merkle_tree::MerklePath,
-    primitives::{PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::Signature,
-    sapling::Node,
+    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::Error,
