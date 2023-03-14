@@ -547,7 +547,7 @@ where
         log::info!("building the transaction");
 
         // Set up a channel to recieve updates on the progress of building the transaction.
-        let (tx, _) = tokio::sync::mpsc::channel(10);
+        let (tx, _) = std::sync::mpsc::channel();
 
         let txdata = builder
             .build(

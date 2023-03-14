@@ -3,8 +3,8 @@ use std::{
     io::{self, Write},
     marker::PhantomData,
 };
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 
 use crate::zcash::{
     note_encryption::NoteEncryption,
@@ -34,6 +34,7 @@ use crate::zcash::{
 };
 use group::GroupEncoding;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
+use zecw_primitives::transaction::builder::Progress;
 
 use crate::{
     data::{sighashdata::signature_hash_input_data, HashSeed, HsmTxData},
@@ -359,7 +360,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         &mut self,
         consensus_branch_id: consensus::BranchId,
         prover: &impl HsmTxProver,
-        progress_notifier: Option<mpsc::Sender<usize>>,
+        progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<HsmTxData, Error> {
         self.cached_branchid.replace(consensus_branch_id);
 
@@ -435,7 +436,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         let binding_sig_needed = !spends.is_empty() || !outputs.is_empty();
 
         // Keep track of the total number of steps computed
-        let mut progress: usize = 0;
+        let mut progress = 0u32;
 
         // Create Sapling SpendDescriptions
         if !spends.is_empty() {
@@ -465,7 +466,12 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
                 // Update progress and send a notification on the channel
                 progress += 1;
-                progress_notifier.as_ref().map(|tx| tx.send(progress));
+                if let Some(sender) = progress_notifier.as_ref() {
+                    // If the send fails, we should ignore the error, not crash.
+                    sender
+                        .send(Progress::new(progress, None))
+                        .unwrap_or(());
+                }
 
                 self.sapling_bundle()
                     .shielded_spends
@@ -488,7 +494,12 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
             // Update progress and send a notification on the channel
             progress += 1;
-            progress_notifier.as_ref().map(|tx| tx.send(progress));
+            if let Some(sender) = progress_notifier.as_ref() {
+                // If the send fails, we should ignore the error, not crash.
+                sender
+                    .send(Progress::new(progress, None))
+                    .unwrap_or(());
+            }
 
             self.sapling_bundle().shielded_outputs.push(output_desc);
         }

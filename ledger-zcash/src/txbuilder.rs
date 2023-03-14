@@ -16,7 +16,8 @@ use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
-use tokio::sync::mpsc;
+use std::sync::mpsc;
+use zecw_primitives::transaction::builder::Progress;
 use zx_bip44::BIP44Path;
 
 use crate::{
@@ -480,7 +481,7 @@ impl Builder {
         rng: &mut R,
         height: u32,
         branch: consensus::BranchId,
-        progress_notifier: Option<mpsc::Sender<usize>>,
+        progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<(Transaction, SaplingMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
