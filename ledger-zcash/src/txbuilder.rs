@@ -8,6 +8,7 @@ use crate::zcash::primitives::{
     merkle_tree::MerklePath,
     sapling::{Diversifier, Node, Note, PaymentAddress},
     transaction::{
+        builder::Progress,
         components::{Amount, OutPoint, TxOut},
         Transaction,
     },
@@ -17,7 +18,6 @@ use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
 use std::sync::mpsc;
-use zecw_primitives::transaction::builder::Progress;
 use zx_bip44::BIP44Path;
 
 use crate::{

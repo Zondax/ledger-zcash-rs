@@ -34,7 +34,8 @@ use crate::zcash::{
 };
 use group::GroupEncoding;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
-use zecw_primitives::transaction::builder::Progress;
+use crate::zcash::primitives::transaction::builder::Progress;
+
 
 use crate::{
     data::{sighashdata::signature_hash_input_data, HashSeed, HsmTxData},
