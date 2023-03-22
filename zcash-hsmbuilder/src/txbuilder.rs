@@ -1,11 +1,12 @@
 //! Structs for building transactions.
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 use std::{
     io::{self, Write},
     marker::PhantomData,
 };
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
 
+use crate::zcash::primitives::transaction::builder::Progress;
 use crate::zcash::{
     note_encryption::NoteEncryption,
     primitives::{
@@ -34,8 +35,6 @@ use crate::zcash::{
 };
 use group::GroupEncoding;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
-use crate::zcash::primitives::transaction::builder::Progress;
-
 
 use crate::{
     data::{sighashdata::signature_hash_input_data, HashSeed, HsmTxData},
@@ -469,9 +468,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 progress += 1;
                 if let Some(sender) = progress_notifier.as_ref() {
                     // If the send fails, we should ignore the error, not crash.
-                    sender
-                        .send(Progress::new(progress, None))
-                        .unwrap_or(());
+                    sender.send(Progress::new(progress, None)).unwrap_or(());
                 }
 
                 self.sapling_bundle()
@@ -497,9 +494,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             progress += 1;
             if let Some(sender) = progress_notifier.as_ref() {
                 // If the send fails, we should ignore the error, not crash.
-                sender
-                    .send(Progress::new(progress, None))
-                    .unwrap_or(());
+                sender.send(Progress::new(progress, None)).unwrap_or(());
             }
 
             self.sapling_bundle().shielded_outputs.push(output_desc);
