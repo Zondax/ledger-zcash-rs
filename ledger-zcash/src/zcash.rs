@@ -15,7 +15,7 @@ cfg_if::cfg_if! {
 }
 
 #[allow(dead_code)]
-//actally used in `DataShieldedOutput` debug implementation
+//actually used in `DataShieldedOutput` debug implementation
 pub fn payment_address_bytes_fmt(
     this: &primitives::sapling::PaymentAddress,
     f: &mut std::fmt::Formatter,
