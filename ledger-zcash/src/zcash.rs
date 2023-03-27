@@ -16,6 +16,7 @@ cfg_if::cfg_if! {
 
 #[allow(dead_code)]
 //actually used in `DataShieldedOutput` debug implementation
+/// The payment_address_bytes_fmt function formats the bytes of the payment address for debug information
 pub fn payment_address_bytes_fmt(
     this: &primitives::sapling::PaymentAddress,
     f: &mut std::fmt::Formatter,
