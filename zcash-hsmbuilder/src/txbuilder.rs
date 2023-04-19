@@ -5,6 +5,7 @@ use std::{
     io::{self, Write},
     marker::PhantomData,
 };
+use log4rs;
 
 use crate::zcash::primitives::transaction::builder::Progress;
 use crate::zcash::{
@@ -29,11 +30,13 @@ use crate::zcash::{
                 GROTH_PROOF_SIZE,
             },
             sighash::{signature_hash, SignableInput, SIGHASH_ALL},
-            Authorization, Transaction, TransactionData, Unauthorized,
+            txid::TxIdDigester,
+            Authorization, Transaction, TransactionData, TxVersion, Unauthorized,
         },
     },
 };
 use group::GroupEncoding;
+use log::LevelFilter;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -71,6 +74,7 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng, A: Authoriz
     sapling_bundle: Option<sapling::Bundle<A::SaplingAuth>>,
     binding_sig: Option<Signature>,
     cached_branchid: Option<BranchId>,
+    cached_tx_version: Option<TxVersion>,
 }
 
 impl<P: consensus::Parameters> Builder<P, OsRng, hsmauth::Unauthorized> {
@@ -103,6 +107,28 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
     ///
     /// The fee will be set to the default fee (0.0001 ZEC).
     pub fn new_with_rng(params: P, height: u32, rng: R) -> Self {
+        // todo: all the following is for logging and can be removed
+        // get current date
+        let date = chrono::Utc::now();
+
+        // create log file appender
+        let logfile = log4rs::append::file::FileAppender::builder()
+            .encoder(Box::new(log4rs::encode::pattern::PatternEncoder::default()))
+            // set the file name based on the current date
+            .build(format!("log/{}.log", date))
+            .unwrap();
+
+        // add the logfile appender to the config
+        let config = log4rs::config::Config::builder()
+            .appender(log4rs::config::Appender::builder().build("logfile", Box::new(logfile)))
+            .build(log4rs::config::Root::builder().appender("logfile").build(LevelFilter::Info))
+            .unwrap();
+
+        // init log4rs
+        log4rs::init_config(config);
+        log::info!("Hello, world!");
+        // todo: all the above is for logging and can be removed
+
         Self {
             rng,
             params,
@@ -112,6 +138,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
             spends: vec![],
             outputs: vec![],
             cached_branchid: None,
+            cached_tx_version:None,
             binding_sig: None,
             transparent_bundle: None,
             sapling_bundle: None,
@@ -160,10 +187,18 @@ where
     A: transaction::Authorization<SaplingAuth = SA, TransparentAuth = TA>,
 {
     /// Retrieve the sighash of the current builder state
-    fn sapling_sighash(&self) -> [u8; 32] {
+    fn signature_hash(&self) -> [u8; 32] {
         let data = self.transaction_data().expect("consensus branch id set");
+        let txid_parts = data.digest(TxIdDigester);
 
-        let sighash = transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded);
+        let sighash =
+            match data.version() {
+                TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling =>
+                    {
+                    transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded)
+                    }
+                TxVersion::Zip225 => transaction::sighash_v5::v5_signature_hash(&data, &SignableInput::Shielded, &txid_parts),
+            };
 
         let mut array = [0; 32];
         array.copy_from_slice(&sighash.as_ref()[..32]);
@@ -351,19 +386,28 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
     pub fn build(
         &mut self,
         consensus_branch_id: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         prover: &impl HsmTxProver,
     ) -> Result<HsmTxData, Error> {
-        self.build_with_progress_notifier(consensus_branch_id, prover, None)
+        self.build_with_progress_notifier(consensus_branch_id, tx_version, prover, None)
     }
 
     pub fn build_with_progress_notifier(
         &mut self,
         consensus_branch_id: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         prover: &impl HsmTxProver,
         progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<HsmTxData, Error> {
         self.cached_branchid.replace(consensus_branch_id);
 
+        let tx_version = match tx_version
+        {
+            Some(v) => v,
+            None => TxVersion::suggested_for_branch(consensus_branch_id)
+        };
+
+        self.cached_tx_version.replace(tx_version);
         //
         // Consistency checks
         //
@@ -501,19 +545,19 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         }
 
         //
-        // Signatures
+        // Signatures -- everything but the signatures must already have been added.
         //
 
         // Add a binding signature if needed
         if binding_sig_needed {
-            let sapling_sighash = self.sapling_sighash();
+            let signature_hash = self.signature_hash();
 
             self.binding_sig = Some(
                 prover
                     .binding_sig(
                         &mut ctx,
                         self.sapling_bundle().value_balance,
-                        &sapling_sighash,
+                        &signature_hash,
                     )
                     .map_err(|()| Error::BindingSig)?,
             );
@@ -586,6 +630,7 @@ where
             sapling_bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         } = self;
 
         Builder {
@@ -600,6 +645,7 @@ where
             sapling_bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         }
     }
 
@@ -711,6 +757,7 @@ where
             sapling_bundle: _,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         } = self;
 
         Builder {
@@ -725,6 +772,7 @@ where
             sapling_bundle: bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         }
     }
     /// Attempt to apply the signatures for the shielded components of the transaction
@@ -739,15 +787,15 @@ where
             ..
         } = match (self.sapling_bundle.as_ref(), signatures.len()) {
             (None, 0) => return Ok(self.with_sapling_bundle(None)),
-            (None, _) => return Err(Error::SpendSig),
-            //if we have no inputs and no signtures were passed this succeeds
+            (None, _) => return Err(Error::NoSpendSig),
+            //if we have no inputs and no signatures were passed this succeeds
             (Some(_), n) if n != self.spends.len() => {
                 log::error!(
                     "Sapling signatures necessary #{}, got #{}",
                     self.spends.len(),
                     n
                 );
-                return Err(Error::SpendSig);
+                return Err(Error::MissingSpendSig);
             }
             (Some(bundle), _) => bundle,
         };
@@ -774,7 +822,8 @@ where
         //if we have no spends we can just skip
         // applying the signutes and verifying
         if !spends.is_empty() {
-            let sighash = self.sapling_sighash();
+            let sighash = self.signature_hash();
+            log::info!("hash input: {:02x?}", sighash);
 
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
@@ -827,7 +876,9 @@ where
 
                 Ok(this)
             }
-            false => Err(Error::SpendSig),
+            false => {
+                Err(Error::InvalidSpendSig)
+            },
         }
     }
 }
@@ -867,22 +918,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         Ok((tx, tx_meta))
     }
 
-    /*
-        pub overwintered: bool,
-    pub version: u32,
-    pub version_group_id: u32,
-    pub vin: Vec<TxIn>,
-    pub vout: Vec<TxOut>,
-    pub lock_time: u32,
-    pub expiry_height: u32,
-    pub value_balance: Amount,
-    pub shielded_spends: Vec<SpendDescription>,
-    pub shielded_outputs: Vec<OutputDescription>,
-    pub joinsplits: Vec<JSDescription>,
-    pub joinsplit_pubkey: Option<[u8; 32]>,
-    pub joinsplit_sig: Option<[u8; 64]>,
-    pub binding_sig: Option<Signature>,
-     */
     /// Same as finalize, except serialized to the format understood by the JavaScript users
     pub fn finalize_js(&mut self) -> Result<Vec<u8>, Error> {
         let txdata = self

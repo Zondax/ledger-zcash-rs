@@ -38,7 +38,7 @@ use crate::zcash::primitives::{
     },
     transaction::{
         components::{Amount, OutPoint},
-        Transaction,
+        Transaction, TxVersion,
     },
 };
 
@@ -478,15 +478,20 @@ where
     pub async fn checkandsign(
         &self,
         data: HsmTxData,
+        tx_version: TxVersion,
     ) -> Result<[u8; 32], LedgerAppError<E::Error>> {
         //this is actually infallible
         let data = data.to_hsm_bytes().unwrap();
-
+        let hex_tx_version = match tx_version {
+            TxVersion::Zip225 => 0x05,
+            TxVersion::Sapling => 0x04,
+            _ => 0x04, //todo: what should the default be?
+        };
         let start_command = APDUCommand {
             cla: Self::CLA,
             ins: INS_CHECKANDSIGN,
             p1: ChunkPayloadType::Init as u8,
-            p2: 0x00,
+            p2: hex_tx_version,
             data: vec![],
         };
 
@@ -532,6 +537,7 @@ where
         input: DataInput,
         parameters: P,
         branch: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         target_height: u32,
     ) -> Result<(Transaction, SaplingMetadata), LedgerAppError<E::Error>> {
         log::info!("adding transaction data to builder");
@@ -558,6 +564,7 @@ where
                 &mut rand_core::OsRng,
                 target_height,
                 branch,
+                tx_version,
                 Some(tx),
             )
             .await

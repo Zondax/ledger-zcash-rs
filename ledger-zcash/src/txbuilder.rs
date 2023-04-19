@@ -10,7 +10,7 @@ use crate::zcash::primitives::{
     transaction::{
         builder::Progress,
         components::{Amount, OutPoint, TxOut},
-        Transaction,
+        Transaction, TxVersion,
     },
 };
 use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
@@ -481,6 +481,7 @@ impl Builder {
         rng: &mut R,
         height: u32,
         branch: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<(Transaction, SaplingMetadata), BuilderError>
     where
@@ -490,6 +491,12 @@ impl Builder {
         E: ledger_transport::Exchange + Send + Sync,
         E::Error: std::error::Error,
     {
+        let tx_version = match tx_version
+        {
+            Some(v) => v,
+            None => TxVersion::suggested_for_branch(branch)
+        };
+
         let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
         self.setup_change(fee)?;
         self.pad_sapling_outputs(rng)?;
@@ -582,11 +589,11 @@ impl Builder {
 
         // building finished, time to have the ledger sign everything
         let ledger_data = hsmbuilder
-            .build_with_progress_notifier(branch, prover, progress_notifier)
+            .build_with_progress_notifier(branch, Some(tx_version), prover, progress_notifier)
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
         let _signed_hash = app
-            .checkandsign(ledger_data)
+            .checkandsign(ledger_data,tx_version)
             .await
             .map_err(|_| BuilderError::FailedToSignTx)?;
 

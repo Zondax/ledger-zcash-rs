@@ -5,6 +5,8 @@ mod neon_bridge;
 use neon_bridge::*;
 
 pub mod sighashdata;
+pub mod sighashdata_v4;
+pub mod sighashdata_v5;
 use sighashdata::TransactionDataSighash;
 
 use crate::zcash::primitives::{

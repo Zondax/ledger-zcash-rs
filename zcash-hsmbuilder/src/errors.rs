@@ -12,6 +12,7 @@ pub enum Error {
     InvalidAmount,
     NoChangeAddress,
     SpendProof,
+    MissingSpendSig,
     SpendSig,
     InvalidSpendSig,
     NoSpendSig,
@@ -41,6 +42,9 @@ impl fmt::Display for Error {
             }
             Error::SpendProof => {
                 write!(f, "Failed to create Sapling spend proof")
+            }
+            Error::MissingSpendSig => {
+                write!(f, "Missing Sapling spend signature(s)")
             }
             Error::SpendSig => {
                 write!(f, "Failed to get Sapling spend signature")
