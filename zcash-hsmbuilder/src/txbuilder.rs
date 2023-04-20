@@ -36,7 +36,8 @@ use crate::zcash::{
     },
 };
 use group::GroupEncoding;
-use log::LevelFilter;
+use log4rs::Handle;
+use log::{LevelFilter, SetLoggerError};
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -108,14 +109,12 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
     /// The fee will be set to the default fee (0.0001 ZEC).
     pub fn new_with_rng(params: P, height: u32, rng: R) -> Self {
         // todo: all the following is for logging and can be removed
-        // get current date
-        let date = chrono::Utc::now();
 
         // create log file appender
         let logfile = log4rs::append::file::FileAppender::builder()
             .encoder(Box::new(log4rs::encode::pattern::PatternEncoder::default()))
             // set the file name based on the current date
-            .build(format!("log/{}.log", date))
+            .build(format!("log/{}.log", "output"))
             .unwrap();
 
         // add the logfile appender to the config
@@ -125,7 +124,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
             .unwrap();
 
         // init log4rs
-        log4rs::init_config(config);
+        match log4rs::init_config(config) {
+            Ok(_) => {}
+            Err(_) => {}
+        };
         log::info!("Hello, world!");
         // todo: all the above is for logging and can be removed
 
@@ -165,7 +167,7 @@ where
     pub fn transaction_data(&self) -> Option<TransactionData<A>> {
         self.cached_branchid.map(|consensus_branch_id| {
             TransactionData::from_parts(
-                transaction::TxVersion::Sapling,
+                self.cached_tx_version.expect("No tx version provided"),
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
@@ -406,6 +408,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             Some(v) => v,
             None => TxVersion::suggested_for_branch(consensus_branch_id)
         };
+        log::info!("tx version is {:#?}", tx_version);
 
         self.cached_tx_version.replace(tx_version);
         //
@@ -551,7 +554,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         // Add a binding signature if needed
         if binding_sig_needed {
             let signature_hash = self.signature_hash();
-
+            log::info!("The binding_sig_needed sapling signature hash is {:#?}", signature_hash);
             self.binding_sig = Some(
                 prover
                     .binding_sig(
@@ -581,7 +584,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         let trans_scripts = r.unwrap();
         let hash_input = signature_hash_input_data(&self.transaction_data().unwrap(), SIGHASH_ALL);
-        log::info!("hash input: {:02x?}", hash_input);
+        log::info!("build_with_progress_notifier signature_hash_input_data: {:02x?}", hash_input);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
         let spenddata = spend_data_hms_fromtx(
@@ -596,6 +599,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 .map(|bundle| bundle.shielded_outputs.as_slice())
                 .unwrap_or(&[]),
         );
+        log::info!("build_with_progress_notifier signature_hash_input_data when sent to ledger:\n {:02x?}", hash_input);
 
         Ok(HsmTxData {
             t_script_data: trans_scripts,
@@ -693,17 +697,37 @@ where
             {
                 //1) generate the signature message
                 // to verify the signature against
-                let sighash = transaction::sighash_v4::v4_signature_hash(
-                    &tx_data,
-                    &SignableInput::Transparent {
-                        hash_type: SIGHASH_ALL,
-                        index: i,
-                        value: info.coin.value,
-                        script_pubkey: &info.coin.script_pubkey,
-                        // for p2pkh, always the same as script_pubkey
-                        script_code: &info.coin.script_pubkey,
-                    },
-                );
+                let sighash =
+                    match tx_data.version() {
+                        TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling =>
+                            {
+                                transaction::sighash_v4::v4_signature_hash(
+                                    &tx_data,
+                                    &SignableInput::Transparent {
+                                        hash_type: SIGHASH_ALL,
+                                        index: i,
+                                        value: info.coin.value,
+                                        script_pubkey: &info.coin.script_pubkey,
+                                        // for p2pkh, always the same as script_pubkey
+                                        script_code: &info.coin.script_pubkey,
+                                    },
+                                )
+                            }
+                        TxVersion::Zip225 =>
+                            {
+                                let txid_parts = tx_data.digest(TxIdDigester);
+                                transaction::sighash_v5::v5_signature_hash(
+                                    &tx_data,
+                                    &SignableInput::Transparent {
+                                        hash_type: SIGHASH_ALL,
+                                        index: i,
+                                        value: info.coin.value,
+                                        script_pubkey: &info.coin.script_pubkey,
+                                        // for p2pkh, always the same as script_pubkey
+                                        script_code: &info.coin.script_pubkey,
+                                    }, &txid_parts)
+                            }
+                    };
 
                 log::info!("Transparent #{} sighash: {:x?}", i, sighash.as_ref());
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
@@ -820,10 +844,10 @@ where
         let mut all_signatures_valid: bool = true;
 
         //if we have no spends we can just skip
-        // applying the signutes and verifying
+        // applying the signatures and verifying
         if !spends.is_empty() {
             let sighash = self.signature_hash();
-            log::info!("hash input: {:02x?}", sighash);
+            log::info!("add_signatures_spend hash input: {:02x?}", sighash);
 
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
@@ -890,7 +914,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
     fn transaction_data_authorized(&self) -> Option<TransactionData<transaction::Authorized>> {
         self.cached_branchid.map(|consensus_branch_id| {
             TransactionData::from_parts(
-                transaction::TxVersion::Sapling,
+                self.cached_tx_version.expect("No tx version provided"),
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),

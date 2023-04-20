@@ -495,6 +495,9 @@ where
             data: vec![],
         };
 
+        log::info!("checkandsign APDUCommand {:#?}", start_command);
+        log::info!("hex_tx_version  {:#?}", hex_tx_version);
+
         let response =
             <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
         log::info!("checkandsign ok");

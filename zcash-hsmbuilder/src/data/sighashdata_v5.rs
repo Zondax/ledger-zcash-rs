@@ -19,6 +19,7 @@ use ff::PrimeField;
 use group::GroupEncoding;
 use std::borrow::Borrow;
 use std::io::Write;
+use log::log;
 
 
 use crate::{
@@ -157,7 +158,7 @@ pub(crate) fn hash_sapling_spends_v5<A: sapling::Authorization>(
 
             nh.write_all(&s_spend.cv.to_bytes()).unwrap();
             nh.write_all(&s_spend.anchor.to_repr()).unwrap();
-            s_spend.rk.write(&mut nh).unwrap();
+            nh.write_all(&s_spend.rk.0.to_bytes()).unwrap();
         }
 
         let compact_digest = ch.finalize();
@@ -187,15 +188,31 @@ pub(crate) fn hash_sapling_outputs_v5<A>(shielded_outputs: &[sapling::OutputDesc
             ch.write_all(&s_out.enc_ciphertext[..52]).unwrap();
 
             mh.write_all(&s_out.enc_ciphertext[52..564]).unwrap();
+            /*log::info!("first byte of cmu is {:#?}",s_out.cmu.to_repr());
+            log::info!("first byte of ephemeral_key is {:#?}",s_out.ephemeral_key);
+            log::info!("first byte of enc_ciphertext is {:#?}",s_out.enc_ciphertext[0]);
+
+            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[52]);
+            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[53]);
+            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[54]);
+
+            log::info!("first byte of cv is {:#?}",s_out.cv.to_bytes());
+            log::info!("first byte of enc_ciphertext aead is {:#?}",s_out.enc_ciphertext[564]);
+            log::info!("first byte of out_ciphertext is {:#?}",s_out.out_ciphertext);
+             */
 
             nh.write_all(&s_out.cv.to_bytes()).unwrap();
             nh.write_all(&s_out.enc_ciphertext[564..]).unwrap();
             nh.write_all(&s_out.out_ciphertext).unwrap();
         }
 
-        h.write_all(ch.finalize().as_bytes()).unwrap();
-        h.write_all(mh.finalize().as_bytes()).unwrap();
-        h.write_all(nh.finalize().as_bytes()).unwrap();
+        let ch_fin = ch.finalize();
+        let mh_fin = mh.finalize();
+        let nh_fin = nh.finalize();
+
+        h.write_all(ch_fin.as_bytes()).unwrap();
+        h.write_all(mh_fin.as_bytes()).unwrap();
+        h.write_all(nh_fin.as_bytes()).unwrap();
     }
     h.finalize()
 }
@@ -239,10 +256,11 @@ where
 
     // header_digest = BLAKE2b-256 hash of the following values
     // version || version_group_id || consensus_branch_id || lock_time || expiry_height
-    let header_digest = hash_header_txid_data_v5(tx.version(),
+    /*let header_digest = hash_header_txid_data_v5(tx.version(),
                                                          tx.consensus_branch_id(),
                                                          tx.lock_time(),
                                                          tx.expiry_height());
+     */
     let header = tx.version().header().to_le_bytes();
     let version_group_id = tx.version().version_group_id().to_le_bytes();
     let consensus_branch_id = u32::from(tx.consensus_branch_id()).to_le_bytes();
@@ -257,13 +275,25 @@ where
     txdata_sighash.header_pre_digest.lock_time = lock_time;
     txdata_sighash.header_pre_digest.expiry_height = expiry_height;
 
+    let binding_in = [].to_vec();
+    let vin = match &tx.transparent_bundle() {
+        Some(t_tx) => &t_tx.vin,
+        None => &binding_in
+    };
+
+    let binding_out = [].to_vec();
+    let vout = match &tx.transparent_bundle() {
+        Some(t_tx) => &t_tx.vout,
+        None => &binding_out
+    };
+
     //transparent_digest fields
     let mut prevouts_digest = [0u8; 32];
     let mut sequence_digest = [0u8; 32];
     let mut outputs_digest = [0u8; 32];
-    prevouts_digest.copy_from_slice(transparent_prevout_hash_v5(&tx.transparent_bundle().unwrap().vin).as_bytes());
-    sequence_digest.copy_from_slice(transparent_sequence_hash_v5(&tx.transparent_bundle().unwrap().vin).as_bytes());
-    outputs_digest.copy_from_slice(transparent_outputs_hash_v5(&tx.transparent_bundle().unwrap().vout).as_bytes());
+    prevouts_digest.copy_from_slice(transparent_prevout_hash_v5(vin).as_bytes());
+    sequence_digest.copy_from_slice(transparent_sequence_hash_v5(vin).as_bytes());
+    outputs_digest.copy_from_slice(transparent_outputs_hash_v5(vout).as_bytes());
     txdata_sighash.transparent_pre_digest.prevouts_digest = prevouts_digest;
     txdata_sighash.transparent_pre_digest.sequence_digest = sequence_digest;
     txdata_sighash.transparent_pre_digest.outputs_digest = outputs_digest;
@@ -273,7 +303,9 @@ where
     let mut sapling_outputs_digest = [0u8; 32];
     let mut value_balance = [0u8; 8];
     sapling_spends_digest.copy_from_slice(hash_sapling_spends_v5(&tx.sapling_bundle().unwrap().shielded_spends).as_bytes());
-    sapling_outputs_digest.copy_from_slice(hash_sapling_outputs_v5(&tx.sapling_bundle().unwrap().shielded_outputs).as_bytes());
+    let h = hash_sapling_outputs_v5(&tx.sapling_bundle().unwrap().shielded_outputs);
+
+    sapling_outputs_digest.copy_from_slice(h.as_bytes());
     value_balance.copy_from_slice(&tx.sapling_bundle().unwrap().value_balance.to_i64_le_bytes());
     txdata_sighash.sapling_pre_digest.sapling_spends_digest = sapling_spends_digest;
     txdata_sighash.sapling_pre_digest.sapling_outputs_digest = sapling_outputs_digest;

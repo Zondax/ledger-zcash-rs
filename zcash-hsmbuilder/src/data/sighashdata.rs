@@ -137,7 +137,7 @@ enum SigHashVersion {
 impl SigHashVersion {
     fn from_tx<A: transaction::Authorization>(tx: &TransactionData<A>) -> Self {
         use crate::zcash::primitives::transaction::TxVersion;
-
+        log::info!("SigHashVersion: tx version is {:#?}",tx.version());
         match tx.version() {
             TxVersion::Sprout(_) => SigHashVersion::Sprout,
             TxVersion::Overwinter => SigHashVersion::Overwinter,
@@ -154,14 +154,16 @@ pub fn signature_hash_input_data(
 where
 {
     let sig_version = SigHashVersion::from_tx(tx);
+
     match sig_version {
         SigHashVersion::NU5=>{
+            log::info!("sig_version is NU5");
             return sighashdata_v5::signature_hash_input_data_v5(tx,hash_type);
         }
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
+            log::info!("sig_version is Overwinter/Sapling");
             return sighashdata_v4::signature_hash_input_data_v4(tx,hash_type);
         }
         SigHashVersion::Sprout => unimplemented!(),
     }
-
 }
