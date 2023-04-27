@@ -31,13 +31,12 @@ use crate::zcash::{
             },
             sighash::{signature_hash, SignableInput, SIGHASH_ALL},
             txid::TxIdDigester,
-            Authorization, Transaction, TransactionData, TxVersion, Unauthorized,
+            Authorization, Transaction, TransactionData, TxVersion, Unauthorized, TxDigests
         },
     },
 };
 use group::GroupEncoding;
 use log4rs::Handle;
-use log::{LevelFilter, SetLoggerError};
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -108,28 +107,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
     ///
     /// The fee will be set to the default fee (0.0001 ZEC).
     pub fn new_with_rng(params: P, height: u32, rng: R) -> Self {
-        // todo: all the following is for logging and can be removed
-
-        // create log file appender
-        let logfile = log4rs::append::file::FileAppender::builder()
-            .encoder(Box::new(log4rs::encode::pattern::PatternEncoder::default()))
-            // set the file name based on the current date
-            .build(format!("log/{}.log", "output"))
-            .unwrap();
-
-        // add the logfile appender to the config
-        let config = log4rs::config::Config::builder()
-            .appender(log4rs::config::Appender::builder().build("logfile", Box::new(logfile)))
-            .build(log4rs::config::Root::builder().appender("logfile").build(LevelFilter::Info))
-            .unwrap();
-
-        // init log4rs
-        match log4rs::init_config(config) {
-            Ok(_) => {}
-            Err(_) => {}
-        };
-        log::info!("Hello, world!");
-        // todo: all the above is for logging and can be removed
 
         Self {
             rng,
@@ -201,7 +178,6 @@ where
                     }
                 TxVersion::Zip225 => transaction::sighash_v5::v5_signature_hash(&data, &SignableInput::Shielded, &txid_parts),
             };
-
         let mut array = [0; 32];
         array.copy_from_slice(&sighash.as_ref()[..32]);
         array
@@ -408,7 +384,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             Some(v) => v,
             None => TxVersion::suggested_for_branch(consensus_branch_id)
         };
-        log::info!("tx version is {:#?}", tx_version);
 
         self.cached_tx_version.replace(tx_version);
         //
@@ -554,7 +529,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         // Add a binding signature if needed
         if binding_sig_needed {
             let signature_hash = self.signature_hash();
-            log::info!("The binding_sig_needed sapling signature hash is {:#?}", signature_hash);
             self.binding_sig = Some(
                 prover
                     .binding_sig(
@@ -584,7 +558,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         let trans_scripts = r.unwrap();
         let hash_input = signature_hash_input_data(&self.transaction_data().unwrap(), SIGHASH_ALL);
-        log::info!("build_with_progress_notifier signature_hash_input_data: {:02x?}", hash_input);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
         let spenddata = spend_data_hms_fromtx(
@@ -599,7 +572,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 .map(|bundle| bundle.shielded_outputs.as_slice())
                 .unwrap_or(&[]),
         );
-        log::info!("build_with_progress_notifier signature_hash_input_data when sent to ledger:\n {:02x?}", hash_input);
 
         Ok(HsmTxData {
             t_script_data: trans_scripts,
@@ -729,7 +701,6 @@ where
                             }
                     };
 
-                log::info!("Transparent #{} sighash: {:x?}", i, sighash.as_ref());
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
 
                 //2) verify signature
@@ -847,7 +818,6 @@ where
         // applying the signatures and verifying
         if !spends.is_empty() {
             let sighash = self.signature_hash();
-            log::info!("add_signatures_spend hash input: {:02x?}", sighash);
 
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
@@ -868,7 +838,6 @@ where
 
                 let valid = rk.verify(&message, &spend_auth_sig, p_g);
 
-                log::info!("Verification of sapling spend signature: #{}", valid);
                 all_signatures_valid &= valid;
 
                 let spend = sapling::SpendDescription {

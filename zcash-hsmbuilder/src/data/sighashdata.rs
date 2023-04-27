@@ -27,7 +27,7 @@ use crate::{
         transaction::{
             self,
             components::{sapling, sprout, transparent},
-            TransactionData,
+            TransactionData, TxDigests,
         },
     },
 };
@@ -110,7 +110,7 @@ impl TransactionDataSighashV5 {
         data.extend_from_slice(&self.header_pre_digest.version_group_id);
         data.extend_from_slice(&self.header_pre_digest.consensus_branch_id);
         data.extend_from_slice(&self.header_pre_digest.lock_time);
-        data.extend_from_slice(&self.header_pre_digest.version);
+        data.extend_from_slice(&self.header_pre_digest.expiry_height);
         // transparent_digest fields
         data.extend_from_slice(&self.transparent_pre_digest.prevouts_digest);
         data.extend_from_slice(&self.transparent_pre_digest.sequence_digest);
@@ -137,7 +137,6 @@ enum SigHashVersion {
 impl SigHashVersion {
     fn from_tx<A: transaction::Authorization>(tx: &TransactionData<A>) -> Self {
         use crate::zcash::primitives::transaction::TxVersion;
-        log::info!("SigHashVersion: tx version is {:#?}",tx.version());
         match tx.version() {
             TxVersion::Sprout(_) => SigHashVersion::Sprout,
             TxVersion::Overwinter => SigHashVersion::Overwinter,
@@ -157,11 +156,9 @@ where
 
     match sig_version {
         SigHashVersion::NU5=>{
-            log::info!("sig_version is NU5");
             return sighashdata_v5::signature_hash_input_data_v5(tx,hash_type);
         }
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
-            log::info!("sig_version is Overwinter/Sapling");
             return sighashdata_v4::signature_hash_input_data_v4(tx,hash_type);
         }
         SigHashVersion::Sprout => unimplemented!(),

@@ -19,7 +19,6 @@ use ff::PrimeField;
 use group::GroupEncoding;
 use std::borrow::Borrow;
 use std::io::Write;
-use log::log;
 
 
 use crate::{
@@ -35,7 +34,7 @@ use crate::{
         consensus,
         transaction::{
             self,
-            components::{sapling, sprout, transparent},
+            components::{sapling, sprout, transparent, Amount},
             TransactionData,
             TxVersion,
         },
@@ -188,18 +187,6 @@ pub(crate) fn hash_sapling_outputs_v5<A>(shielded_outputs: &[sapling::OutputDesc
             ch.write_all(&s_out.enc_ciphertext[..52]).unwrap();
 
             mh.write_all(&s_out.enc_ciphertext[52..564]).unwrap();
-            /*log::info!("first byte of cmu is {:#?}",s_out.cmu.to_repr());
-            log::info!("first byte of ephemeral_key is {:#?}",s_out.ephemeral_key);
-            log::info!("first byte of enc_ciphertext is {:#?}",s_out.enc_ciphertext[0]);
-
-            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[52]);
-            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[53]);
-            log::info!("first bytes of memo enc_ciphertext[52..564] are {:#?}",s_out.enc_ciphertext[54]);
-
-            log::info!("first byte of cv is {:#?}",s_out.cv.to_bytes());
-            log::info!("first byte of enc_ciphertext aead is {:#?}",s_out.enc_ciphertext[564]);
-            log::info!("first byte of out_ciphertext is {:#?}",s_out.out_ciphertext);
-             */
 
             nh.write_all(&s_out.cv.to_bytes()).unwrap();
             nh.write_all(&s_out.enc_ciphertext[564..]).unwrap();
@@ -241,6 +228,37 @@ fn hash_header_txid_data_v5(
     h.finalize()
 }
 
+//todo: delete, just for testing
+fn hash_transparent_txid_data(t_digests: Option<TransparentPreDigest>) -> Blake2bHash {
+    let mut h = hasher(ZCASH_TRANSPARENT_HASH_PERSONALIZATION_V5);
+    if let Some(d) = t_digests {
+        h.write_all(d.prevouts_digest.as_slice()).unwrap();
+        h.write_all(d.sequence_digest.as_slice()).unwrap();
+        h.write_all(d.outputs_digest.as_slice()).unwrap();
+    }
+    h.finalize()
+}
+
+
+fn hash_sapling_txid_data<A: sapling::Authorization>(bundle: Option<&sapling::Bundle<A>>) -> Blake2bHash {
+    let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION_V5);
+    match bundle {
+        Some(b) =>
+            {
+            h.write_all(hash_sapling_spends_v5(&b.shielded_spends).as_bytes())
+                .unwrap();
+
+            h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs).as_bytes())
+                .unwrap();
+
+            h.write_all(&b.value_balance.to_i64_le_bytes())
+                .unwrap();
+            },
+        None => {},
+    }
+    h.finalize()
+}
+
 pub fn signature_hash_input_data_v5(
     tx: &TransactionData<hsmauth::Unauthorized>,
     hash_type: u8,
@@ -256,17 +274,11 @@ where
 
     // header_digest = BLAKE2b-256 hash of the following values
     // version || version_group_id || consensus_branch_id || lock_time || expiry_height
-    /*let header_digest = hash_header_txid_data_v5(tx.version(),
-                                                         tx.consensus_branch_id(),
-                                                         tx.lock_time(),
-                                                         tx.expiry_height());
-     */
     let header = tx.version().header().to_le_bytes();
     let version_group_id = tx.version().version_group_id().to_le_bytes();
     let consensus_branch_id = u32::from(tx.consensus_branch_id()).to_le_bytes();
     let lock_time = tx.lock_time().to_le_bytes();
     let expiry_height = u32::from(tx.expiry_height()).to_le_bytes();
-
 
     // header_digest fields
     txdata_sighash.header_pre_digest.version = header;
@@ -298,15 +310,23 @@ where
     txdata_sighash.transparent_pre_digest.sequence_digest = sequence_digest;
     txdata_sighash.transparent_pre_digest.outputs_digest = outputs_digest;
 
+
+    let sapling_binding_in = [].to_vec();
+    let sapling_binding_out = [].to_vec();
+    let ( shielded_spends, shielded_outputs, vb) = match &tx.sapling_bundle() {
+        Some(z_tx) => (&z_tx.shielded_spends, &z_tx.shielded_outputs, z_tx.value_balance),
+        None => (&sapling_binding_in, &sapling_binding_out, Amount::from_u64(0).unwrap())
+    };
+
     // sapling_digest fields
     let mut sapling_spends_digest = [0u8; 32];
     let mut sapling_outputs_digest = [0u8; 32];
     let mut value_balance = [0u8; 8];
-    sapling_spends_digest.copy_from_slice(hash_sapling_spends_v5(&tx.sapling_bundle().unwrap().shielded_spends).as_bytes());
-    let h = hash_sapling_outputs_v5(&tx.sapling_bundle().unwrap().shielded_outputs);
 
-    sapling_outputs_digest.copy_from_slice(h.as_bytes());
-    value_balance.copy_from_slice(&tx.sapling_bundle().unwrap().value_balance.to_i64_le_bytes());
+    sapling_spends_digest.copy_from_slice(hash_sapling_spends_v5(shielded_spends).as_bytes());
+    sapling_outputs_digest.copy_from_slice(hash_sapling_outputs_v5(shielded_outputs).as_bytes());
+    value_balance.copy_from_slice(&vb.to_i64_le_bytes());
+
     txdata_sighash.sapling_pre_digest.sapling_spends_digest = sapling_spends_digest;
     txdata_sighash.sapling_pre_digest.sapling_outputs_digest = sapling_outputs_digest;
     txdata_sighash.sapling_pre_digest.value_balance = value_balance;
