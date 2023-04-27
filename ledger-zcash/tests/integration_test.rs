@@ -360,7 +360,7 @@ async fn do_full_transaction_shieldedonly() {
     };
 
     let response = app
-        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling, None,0)
+        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling, None, 0)
         .await;
     assert!(response.is_ok());
 }
@@ -532,7 +532,7 @@ async fn do_full_transaction_transparentonly() {
     };
 
     let r = app
-        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling, None,0)
+        .do_transaction(input, TestNetwork, consensus::BranchId::Sapling, None, 0)
         .await;
     assert!(r.is_ok());
 }

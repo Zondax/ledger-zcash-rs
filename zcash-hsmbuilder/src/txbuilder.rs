@@ -1,11 +1,11 @@
 //! Structs for building transactions.
+use log4rs;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::{
     io::{self, Write},
     marker::PhantomData,
 };
-use log4rs;
 
 use crate::zcash::primitives::transaction::builder::Progress;
 use crate::zcash::{
@@ -31,7 +31,7 @@ use crate::zcash::{
             },
             sighash::{signature_hash, SignableInput, SIGHASH_ALL},
             txid::TxIdDigester,
-            Authorization, Transaction, TransactionData, TxVersion, Unauthorized, TxDigests
+            Authorization, Transaction, TransactionData, TxDigests, TxVersion, Unauthorized,
         },
     },
 };
@@ -107,7 +107,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
     ///
     /// The fee will be set to the default fee (0.0001 ZEC).
     pub fn new_with_rng(params: P, height: u32, rng: R) -> Self {
-
         Self {
             rng,
             params,
@@ -117,7 +116,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
             spends: vec![],
             outputs: vec![],
             cached_branchid: None,
-            cached_tx_version:None,
+            cached_tx_version: None,
             binding_sig: None,
             transparent_bundle: None,
             sapling_bundle: None,
@@ -170,14 +169,16 @@ where
         let data = self.transaction_data().expect("consensus branch id set");
         let txid_parts = data.digest(TxIdDigester);
 
-        let sighash =
-            match data.version() {
-                TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling =>
-                    {
-                    transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded)
-                    }
-                TxVersion::Zip225 => transaction::sighash_v5::v5_signature_hash(&data, &SignableInput::Shielded, &txid_parts),
-            };
+        let sighash = match data.version() {
+            TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
+                transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded)
+            }
+            TxVersion::Zip225 => transaction::sighash_v5::v5_signature_hash(
+                &data,
+                &SignableInput::Shielded,
+                &txid_parts,
+            ),
+        };
         let mut array = [0; 32];
         array.copy_from_slice(&sighash.as_ref()[..32]);
         array
@@ -379,10 +380,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
     ) -> Result<HsmTxData, Error> {
         self.cached_branchid.replace(consensus_branch_id);
 
-        let tx_version = match tx_version
-        {
+        let tx_version = match tx_version {
             Some(v) => v,
-            None => TxVersion::suggested_for_branch(consensus_branch_id)
+            None => TxVersion::suggested_for_branch(consensus_branch_id),
         };
 
         self.cached_tx_version.replace(tx_version);
@@ -669,37 +669,36 @@ where
             {
                 //1) generate the signature message
                 // to verify the signature against
-                let sighash =
-                    match tx_data.version() {
-                        TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling =>
-                            {
-                                transaction::sighash_v4::v4_signature_hash(
-                                    &tx_data,
-                                    &SignableInput::Transparent {
-                                        hash_type: SIGHASH_ALL,
-                                        index: i,
-                                        value: info.coin.value,
-                                        script_pubkey: &info.coin.script_pubkey,
-                                        // for p2pkh, always the same as script_pubkey
-                                        script_code: &info.coin.script_pubkey,
-                                    },
-                                )
-                            }
-                        TxVersion::Zip225 =>
-                            {
-                                let txid_parts = tx_data.digest(TxIdDigester);
-                                transaction::sighash_v5::v5_signature_hash(
-                                    &tx_data,
-                                    &SignableInput::Transparent {
-                                        hash_type: SIGHASH_ALL,
-                                        index: i,
-                                        value: info.coin.value,
-                                        script_pubkey: &info.coin.script_pubkey,
-                                        // for p2pkh, always the same as script_pubkey
-                                        script_code: &info.coin.script_pubkey,
-                                    }, &txid_parts)
-                            }
-                    };
+                let sighash = match tx_data.version() {
+                    TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
+                        transaction::sighash_v4::v4_signature_hash(
+                            &tx_data,
+                            &SignableInput::Transparent {
+                                hash_type: SIGHASH_ALL,
+                                index: i,
+                                value: info.coin.value,
+                                script_pubkey: &info.coin.script_pubkey,
+                                // for p2pkh, always the same as script_pubkey
+                                script_code: &info.coin.script_pubkey,
+                            },
+                        )
+                    }
+                    TxVersion::Zip225 => {
+                        let txid_parts = tx_data.digest(TxIdDigester);
+                        transaction::sighash_v5::v5_signature_hash(
+                            &tx_data,
+                            &SignableInput::Transparent {
+                                hash_type: SIGHASH_ALL,
+                                index: i,
+                                value: info.coin.value,
+                                script_pubkey: &info.coin.script_pubkey,
+                                // for p2pkh, always the same as script_pubkey
+                                script_code: &info.coin.script_pubkey,
+                            },
+                            &txid_parts,
+                        )
+                    }
+                };
 
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
 
@@ -869,9 +868,7 @@ where
 
                 Ok(this)
             }
-            false => {
-                Err(Error::InvalidSpendSig)
-            },
+            false => Err(Error::InvalidSpendSig),
         }
     }
 }

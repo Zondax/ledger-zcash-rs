@@ -42,21 +42,19 @@ pub const SAPLING_VERSION_GROUP_ID: u32 = 0x892F_2085;
 pub const SAPLING_TX_VERSION: u32 = 4;
 
 #[derive(Clone, Debug)]
-pub enum TransactionDataSighash{
+pub enum TransactionDataSighash {
     V4(TransactionDataSighashV4),
     V5(TransactionDataSighashV5),
 }
 
 impl TransactionDataSighash {
-
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             TransactionDataSighash::V4(tx) => tx.to_bytes(),
-            TransactionDataSighash::V5(tx) => tx.to_bytes()
+            TransactionDataSighash::V5(tx) => tx.to_bytes(),
         }
     }
 }
-
 
 #[derive(Default, Clone, Debug)]
 pub struct TransactionDataSighashV4 {
@@ -155,11 +153,11 @@ where
     let sig_version = SigHashVersion::from_tx(tx);
 
     match sig_version {
-        SigHashVersion::NU5=>{
-            return sighashdata_v5::signature_hash_input_data_v5(tx,hash_type);
+        SigHashVersion::NU5 => {
+            return sighashdata_v5::signature_hash_input_data_v5(tx, hash_type);
         }
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
-            return sighashdata_v4::signature_hash_input_data_v4(tx,hash_type);
+            return sighashdata_v4::signature_hash_input_data_v4(tx, hash_type);
         }
         SigHashVersion::Sprout => unimplemented!(),
     }

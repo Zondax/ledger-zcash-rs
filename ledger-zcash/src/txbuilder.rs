@@ -491,10 +491,9 @@ impl Builder {
         E: ledger_transport::Exchange + Send + Sync,
         E::Error: std::error::Error,
     {
-        let tx_version = match tx_version
-        {
+        let tx_version = match tx_version {
             Some(v) => v,
-            None => TxVersion::suggested_for_branch(branch)
+            None => TxVersion::suggested_for_branch(branch),
         };
 
         let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
@@ -593,7 +592,7 @@ impl Builder {
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
         let _signed_hash = app
-            .checkandsign(ledger_data,tx_version)
+            .checkandsign(ledger_data, tx_version)
             .await
             .map_err(|_| BuilderError::FailedToSignTx)?;
 

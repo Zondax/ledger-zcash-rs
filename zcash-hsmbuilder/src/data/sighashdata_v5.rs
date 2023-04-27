@@ -20,28 +20,21 @@ use group::GroupEncoding;
 use std::borrow::Borrow;
 use std::io::Write;
 
-
 use crate::{
-    hsmauth,
-    data::sighashdata::{TransactionDataSighash,
-                                   TransactionDataSighashV5,
-                                   SIGHASH_NONE,
-                                   SIGHASH_SINGLE,
-                                   SIGHASH_MASK,
-                                   SIGHASH_ANYONECANPAY,
+    data::sighashdata::{
+        TransactionDataSighash, TransactionDataSighashV5, SIGHASH_ANYONECANPAY, SIGHASH_MASK,
+        SIGHASH_NONE, SIGHASH_SINGLE,
     },
+    hsmauth,
     zcash::primitives::{
         consensus,
         transaction::{
             self,
             components::{sapling, sprout, transparent, Amount},
-            TransactionData,
-            TxVersion,
+            TransactionData, TxVersion,
         },
     },
 };
-
-
 
 /// TxId tree root personalization
 const ZCASH_TX_PERSONALIZATION_PREFIX_V5: &[u8; 12] = b"ZcashTxHash_";
@@ -96,9 +89,11 @@ pub struct SaplingPreDigest {
     pub value_balance: [u8; 8],
 }
 
-
 fn hasher(personal: &[u8; 16]) -> State {
-    Blake2bParams::new().hash_length(32).personal(personal).to_state()
+    Blake2bParams::new()
+        .hash_length(32)
+        .personal(personal)
+        .to_state()
 }
 
 /// Sequentially append the serialized value of each transparent input
@@ -131,7 +126,9 @@ pub(crate) fn transparent_sequence_hash_v5<TransparentAuth: transparent::Authori
 /// to a hash personalized by ZCASH_OUTPUTS_HASH_PERSONALIZATION.
 /// In the case that no outputs are provided, this produces a default
 /// hash from just the personalization string.
-pub(crate) fn transparent_outputs_hash_v5<T: Borrow<transparent::TxOut>>(vout: &[T]) -> Blake2bHash {
+pub(crate) fn transparent_outputs_hash_v5<T: Borrow<transparent::TxOut>>(
+    vout: &[T],
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_OUTPUTS_HASH_PERSONALIZATION_V5);
     for t_out in vout {
         t_out.borrow().write(&mut h).unwrap();
@@ -168,14 +165,15 @@ pub(crate) fn hash_sapling_spends_v5<A: sapling::Authorization>(
     h.finalize()
 }
 
-
 /// Write disjoint parts of each Sapling shielded output as 3 separate hashes:
 /// * \[(cmu, epk, enc_ciphertext\[..52\])*\] personalized with ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION_V5
 /// * \[enc_ciphertext\[52..564\]*\] (memo ciphertexts) personalized with ZCASH_SAPLING_OUTPUTS_MEMOS_HASH_PERSONALIZATION_V5
 /// * \[(cv, enc_ciphertext\[564..\], out_ciphertext, zkproof)*\] personalized with ZCASH_SAPLING_OUTPUTS_NONCOMPACT_HASH_PERSONALIZATION_V5
 ///
 /// Then, hash these together personalized with ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION_V5
-pub(crate) fn hash_sapling_outputs_v5<A>(shielded_outputs: &[sapling::OutputDescription<A>]) -> Blake2bHash {
+pub(crate) fn hash_sapling_outputs_v5<A>(
+    shielded_outputs: &[sapling::OutputDescription<A>],
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION_V5);
     if !shielded_outputs.is_empty() {
         let mut ch = hasher(ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION_V5);
@@ -239,22 +237,21 @@ fn hash_transparent_txid_data(t_digests: Option<TransparentPreDigest>) -> Blake2
     h.finalize()
 }
 
-
-fn hash_sapling_txid_data<A: sapling::Authorization>(bundle: Option<&sapling::Bundle<A>>) -> Blake2bHash {
+fn hash_sapling_txid_data<A: sapling::Authorization>(
+    bundle: Option<&sapling::Bundle<A>>,
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION_V5);
     match bundle {
-        Some(b) =>
-            {
+        Some(b) => {
             h.write_all(hash_sapling_spends_v5(&b.shielded_spends).as_bytes())
                 .unwrap();
 
             h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs).as_bytes())
                 .unwrap();
 
-            h.write_all(&b.value_balance.to_i64_le_bytes())
-                .unwrap();
-            },
-        None => {},
+            h.write_all(&b.value_balance.to_i64_le_bytes()).unwrap();
+        }
+        None => {}
     }
     h.finalize()
 }
@@ -290,13 +287,13 @@ where
     let binding_in = [].to_vec();
     let vin = match &tx.transparent_bundle() {
         Some(t_tx) => &t_tx.vin,
-        None => &binding_in
+        None => &binding_in,
     };
 
     let binding_out = [].to_vec();
     let vout = match &tx.transparent_bundle() {
         Some(t_tx) => &t_tx.vout,
-        None => &binding_out
+        None => &binding_out,
     };
 
     //transparent_digest fields
@@ -310,12 +307,19 @@ where
     txdata_sighash.transparent_pre_digest.sequence_digest = sequence_digest;
     txdata_sighash.transparent_pre_digest.outputs_digest = outputs_digest;
 
-
     let sapling_binding_in = [].to_vec();
     let sapling_binding_out = [].to_vec();
-    let ( shielded_spends, shielded_outputs, vb) = match &tx.sapling_bundle() {
-        Some(z_tx) => (&z_tx.shielded_spends, &z_tx.shielded_outputs, z_tx.value_balance),
-        None => (&sapling_binding_in, &sapling_binding_out, Amount::from_u64(0).unwrap())
+    let (shielded_spends, shielded_outputs, vb) = match &tx.sapling_bundle() {
+        Some(z_tx) => (
+            &z_tx.shielded_spends,
+            &z_tx.shielded_outputs,
+            z_tx.value_balance,
+        ),
+        None => (
+            &sapling_binding_in,
+            &sapling_binding_out,
+            Amount::from_u64(0).unwrap(),
+        ),
     };
 
     // sapling_digest fields
@@ -332,7 +336,9 @@ where
     txdata_sighash.sapling_pre_digest.value_balance = value_balance;
 
     // empty orchard digest
-    txdata_sighash.orchard_digest.copy_from_slice(hash_orchard_empty().as_bytes());
+    txdata_sighash
+        .orchard_digest
+        .copy_from_slice(hash_orchard_empty().as_bytes());
 
     TransactionDataSighash::V5(txdata_sighash)
 }

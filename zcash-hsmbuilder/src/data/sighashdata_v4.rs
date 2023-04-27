@@ -18,6 +18,11 @@ use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
 
+use crate::data::sighashdata::{
+    TransactionDataSighash, TransactionDataSighashV4, OVERWINTER_VERSION_GROUP_ID,
+    SAPLING_TX_VERSION, SAPLING_VERSION_GROUP_ID, SIGHASH_ANYONECANPAY, SIGHASH_MASK, SIGHASH_NONE,
+    SIGHASH_SINGLE,
+};
 use crate::{
     hsmauth,
     zcash::primitives::{
@@ -28,16 +33,6 @@ use crate::{
             TransactionData,
         },
     },
-};
-use crate::data::sighashdata::{TransactionDataSighash,
-                               TransactionDataSighashV4,
-                               SIGHASH_NONE,
-                               SIGHASH_SINGLE,
-                               SIGHASH_MASK,
-                               SIGHASH_ANYONECANPAY,
-                               OVERWINTER_VERSION_GROUP_ID,
-                               SAPLING_VERSION_GROUP_ID,
-                               SAPLING_TX_VERSION
 };
 
 const ZCASH_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"ZcashSigHash";
@@ -65,8 +60,6 @@ macro_rules! update_data {
         }
     };
 }
-
-
 
 fn prevout_hash_v4<A: transparent::Authorization>(vins: &[transparent::TxIn<A>]) -> Blake2bHash {
     let mut data = Vec::with_capacity(vins.len() * 36);
@@ -174,81 +167,81 @@ where
     write_u32!(txdata_sighash.header, header, tmp);
     write_u32!(txdata_sighash.version_id, version_group_id, tmp);
 
-            //transparent data
-            // replace vin and vout with empty slices
-            // if we don't have the bundle
-            if let Some((vin, vout)) = tx
-                .transparent_bundle()
-                .map(|b| (b.vin.as_slice(), b.vout.as_slice()))
-                .or(Some((&[], &[])))
-            {
-                update_data!(
-                    txdata_sighash.prevoutshash,
-                    hash_type & SIGHASH_ANYONECANPAY == 0,
-                    prevout_hash_v4(vin)
-                ); //true for sighash_all
+    //transparent data
+    // replace vin and vout with empty slices
+    // if we don't have the bundle
+    if let Some((vin, vout)) = tx
+        .transparent_bundle()
+        .map(|b| (b.vin.as_slice(), b.vout.as_slice()))
+        .or(Some((&[], &[])))
+    {
+        update_data!(
+            txdata_sighash.prevoutshash,
+            hash_type & SIGHASH_ANYONECANPAY == 0,
+            prevout_hash_v4(vin)
+        ); //true for sighash_all
 
-                update_data!(
-                    txdata_sighash.sequencehash,
-                    hash_type & SIGHASH_ANYONECANPAY == 0
-                        && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
-                        && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
-                    sequence_hash_v4(vin)
-                ); //true for sighash_all
+        update_data!(
+            txdata_sighash.sequencehash,
+            hash_type & SIGHASH_ANYONECANPAY == 0
+                && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
+                && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
+            sequence_hash_v4(vin)
+        ); //true for sighash_all
 
-                if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
-                    && (hash_type & SIGHASH_MASK) != SIGHASH_NONE
-                {
-                    txdata_sighash
-                        .outputshash
-                        .copy_from_slice(outputs_hash_v4(vout).as_ref()); //true for sighash all
-
-                //TODO: single output hash? SIGHASH_SINGLE
-                } else {
-                    txdata_sighash.outputshash.copy_from_slice(&[0; 32]);
-                };
-            }
-
-            //sprout data
-            update_data!(
-                txdata_sighash.joinsplitshash,
-                !tx.sprout_bundle().map_or(true, |b| b.joinsplits.is_empty()),
-                {
-                    let bundle = tx.sprout_bundle().unwrap();
-                    joinsplits_hash_v4(
-                        tx.consensus_branch_id(),
-                        &bundle.joinsplits,
-                        &bundle.joinsplit_pubkey,
-                    )
-                }
-            );
-
-            //sapling data
-            update_data!(
-                txdata_sighash.shieldedspendhash,
-                !tx.sapling_bundle()
-                    .map_or(true, |b| b.shielded_spends.is_empty()),
-                shielded_spends_hash_v4(&tx.sapling_bundle().unwrap().shielded_spends)
-            );
-            update_data!(
-                txdata_sighash.shieldedoutputhash,
-                !tx.sapling_bundle()
-                    .map_or(true, |b| b.shielded_outputs.is_empty()),
-                shielded_outputs_hash_v4(&tx.sapling_bundle().unwrap().shielded_outputs)
-            );
-
-            write_u32!(txdata_sighash.lock_time, tx.lock_time(), tmp);
-
-            let expiry_height = tx.expiry_height().into();
-            write_u32!(txdata_sighash.expiry_height, expiry_height, tmp);
-
-            let sapling_value_balance = tx
-                .sapling_bundle()
-                .map_or(transaction::components::Amount::zero(), |b| b.value_balance);
+        if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
+            && (hash_type & SIGHASH_MASK) != SIGHASH_NONE
+        {
             txdata_sighash
-                .value_balance
-                .copy_from_slice(&sapling_value_balance.to_i64_le_bytes());
+                .outputshash
+                .copy_from_slice(outputs_hash_v4(vout).as_ref()); //true for sighash all
 
-            write_u32!(txdata_sighash.hash_type, hash_type as u32, tmp);
+        //TODO: single output hash? SIGHASH_SINGLE
+        } else {
+            txdata_sighash.outputshash.copy_from_slice(&[0; 32]);
+        };
+    }
+
+    //sprout data
+    update_data!(
+        txdata_sighash.joinsplitshash,
+        !tx.sprout_bundle().map_or(true, |b| b.joinsplits.is_empty()),
+        {
+            let bundle = tx.sprout_bundle().unwrap();
+            joinsplits_hash_v4(
+                tx.consensus_branch_id(),
+                &bundle.joinsplits,
+                &bundle.joinsplit_pubkey,
+            )
+        }
+    );
+
+    //sapling data
+    update_data!(
+        txdata_sighash.shieldedspendhash,
+        !tx.sapling_bundle()
+            .map_or(true, |b| b.shielded_spends.is_empty()),
+        shielded_spends_hash_v4(&tx.sapling_bundle().unwrap().shielded_spends)
+    );
+    update_data!(
+        txdata_sighash.shieldedoutputhash,
+        !tx.sapling_bundle()
+            .map_or(true, |b| b.shielded_outputs.is_empty()),
+        shielded_outputs_hash_v4(&tx.sapling_bundle().unwrap().shielded_outputs)
+    );
+
+    write_u32!(txdata_sighash.lock_time, tx.lock_time(), tmp);
+
+    let expiry_height = tx.expiry_height().into();
+    write_u32!(txdata_sighash.expiry_height, expiry_height, tmp);
+
+    let sapling_value_balance = tx
+        .sapling_bundle()
+        .map_or(transaction::components::Amount::zero(), |b| b.value_balance);
+    txdata_sighash
+        .value_balance
+        .copy_from_slice(&sapling_value_balance.to_i64_le_bytes());
+
+    write_u32!(txdata_sighash.hash_type, hash_type as u32, tmp);
     TransactionDataSighash::V4(txdata_sighash)
 }
