@@ -485,8 +485,14 @@ where
         let hex_tx_version = match tx_version {
             TxVersion::Zip225 => 0x05,
             TxVersion::Sapling => 0x04,
-            _ => 0x04, //todo: what should the default be?
+            _ => 0u8,
         };
+        if hex_tx_version == 0u8 {
+            return Err(LedgerAppError::AppSpecific(
+                0,
+                String::from("Unsupported transaction version"),
+            ));
+        }
         let start_command = APDUCommand {
             cla: Self::CLA,
             ins: INS_CHECKANDSIGN,

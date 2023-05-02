@@ -1,5 +1,4 @@
 //! Structs for building transactions.
-use log4rs;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::{
@@ -36,7 +35,6 @@ use crate::zcash::{
     },
 };
 use group::GroupEncoding;
-use log4rs::Handle;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -141,9 +139,10 @@ where
 {
     /// Retrieve the [`TransactionData`] of the current builder state
     pub fn transaction_data(&self) -> Option<TransactionData<A>> {
-        self.cached_branchid.map(|consensus_branch_id| {
+        let optionals = self.cached_tx_version.zip(self.cached_branchid);
+        optionals.map(|(cached_tx_version, consensus_branch_id)| {
             TransactionData::from_parts(
-                self.cached_tx_version.expect("No tx version provided"),
+                cached_tx_version,
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
@@ -490,7 +489,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                 progress += 1;
                 if let Some(sender) = progress_notifier.as_ref() {
                     // If the send fails, we should ignore the error, not crash.
-                    sender.send(Progress::new(progress, None)).unwrap_or(());
+                    let _ = sender.send(Progress::new(progress, None));
                 }
 
                 self.sapling_bundle()
@@ -516,7 +515,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             progress += 1;
             if let Some(sender) = progress_notifier.as_ref() {
                 // If the send fails, we should ignore the error, not crash.
-                sender.send(Progress::new(progress, None)).unwrap_or(());
+                let _ = sender.send(Progress::new(progress, None));
             }
 
             self.sapling_bundle().shielded_outputs.push(output_desc);
@@ -878,9 +877,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 {
     /// Retrieve [`TransactionData`] parametrized with [`transaction::Authorized`]
     fn transaction_data_authorized(&self) -> Option<TransactionData<transaction::Authorized>> {
-        self.cached_branchid.map(|consensus_branch_id| {
+        let optionals = self.cached_tx_version.zip(self.cached_branchid);
+        optionals.map(|(cached_tx_version, consensus_branch_id)| {
             TransactionData::from_parts(
-                self.cached_tx_version.expect("No tx version provided"),
+                cached_tx_version,
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),

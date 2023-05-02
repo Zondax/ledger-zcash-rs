@@ -41,8 +41,6 @@ rand_core = "0.6"
 ripemd = "0.1"
 secp256k1 = { version = "0.21" }
 sha2 = "0.9"
-log4rs = "1"
-chrono = "0.4.24"
 serde_derive = "1"
 serde = { version = "1", features = ["derive"] }
 
