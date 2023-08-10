@@ -504,8 +504,7 @@ where
         log::info!("checkandsign APDUCommand {:#?}", start_command);
         log::info!("hex_tx_version  {:#?}", hex_tx_version);
 
-        let response =
-            <Self as AppExt<E>>::send_chunks(&self.apdu_transport, start_command, &data).await?;
+        let response = Self::send_chunks_p2_all(&self.apdu_transport, start_command, &data).await?;
         log::info!("checkandsign ok");
 
         let response_data = response.data();

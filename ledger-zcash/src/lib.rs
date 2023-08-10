@@ -31,3 +31,5 @@ pub mod zcash;
 /// Ergonomic transaction builder
 #[path = "./txbuilder.rs"]
 pub mod builder;
+
+mod apdu_extra;
