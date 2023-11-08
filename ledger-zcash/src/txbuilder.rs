@@ -348,21 +348,26 @@ impl Builder {
     /// See <https://github.com/zcash/zcash/issues/3615>
     ///
     /// Same applies when we only have 1 output
-    fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
+    fn create_padded_sapling_outputs<R: RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> Result<ArrayVec<DataShieldedOutput, 2>, BuilderError> {
+        let mut rv = ArrayVec::new();
+
         if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
             let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
             for _ in 0..dummies {
-                self.add_sapling_output(
-                    None,
-                    random_payment_address(rng),
-                    Amount::from_u64(0).unwrap(),
-                    None,
-                )?;
+                rv.push(DataShieldedOutput {
+                    address: random_payment_address(rng),
+                    value: Amount::from_u64(0).unwrap(),
+                    ovk: None,
+                    memo: None,
+                });
             }
         }
 
-        Ok(self)
+        Ok(rv)
     }
 
     /// Sets the Sapling address to which any change will be sent.
@@ -375,6 +380,25 @@ impl Builder {
 }
 
 impl Builder {
+    fn calculate_zip0317_fee(
+        tins_n: usize,
+        touts_n: usize,
+        sapling_spends_n: usize,
+        sapling_outputs_n: usize,
+    ) -> Amount {
+        use std::cmp::max;
+
+        let logical_actions = max(tins_n, touts_n) + max(sapling_spends_n, sapling_outputs_n);
+
+        const MARGINAL_FEE: u64 = 5000;
+        const GRACE_ACTIONS: usize = 2;
+
+        let actions = max(GRACE_ACTIONS, logical_actions);
+
+        let rv = MARGINAL_FEE * (actions as u64);
+        Amount::from_u64(rv).unwrap()
+    }
+
     fn calculate_change(&self, fee: Amount) -> Amount {
         let tin_values = self.transparent_inputs.iter().map(|tin| tin.value);
 
@@ -402,7 +426,7 @@ impl Builder {
         }
     }
 
-    /// This takes care of setting up an output for a change address if necessary
+    /// This takes care of setting up an output for a change address if necessary (and pad sapling outputs)
     ///
     /// When a change output is necessary: if there's any leftover currency from summing all
     /// the inputs and removing all the outputs and the fee.
@@ -415,29 +439,48 @@ impl Builder {
     ///
     /// The above rules are enough to cover all cases, if all cases fail
     /// then there are no inputs to the transaction
-    fn setup_change(&mut self, fee: TxFee) -> Result<&mut Self, BuilderError> {
-        let value = self.calculate_change(fee.into());
+    fn setup_change_and_pad_outputs<R: RngCore>(
+        &mut self,
+        rng: &mut R,
+        mut fee: Amount,
+    ) -> Result<Amount, BuilderError> {
+        let value = self.calculate_change(fee);
+        let mut pads = self.create_padded_sapling_outputs(rng)?;
 
         if value != Amount::zero() {
-            if let Some((ovk, addr)) = self.change_address.as_ref() {
+            log::debug!("adding output with change");
+
+            let change_to_sapling = self
+                .change_address
+                .clone()
+                .map(|(ovk, addr)| (Some(ovk), addr))
+                .or_else(|| self.sapling_spends.get(0).map(|s| (None, s.address())));
+
+            if let Some((ovk, addr)) = change_to_sapling {
+                fee = Self::calculate_zip0317_fee(
+                    self.transparent_inputs.len(),
+                    self.transaprent_outputs.len(),
+                    self.sapling_spends.len(),
+                    self.sapling_outputs.len() + pads.len(),
+                );
+                let value = self.calculate_change(fee);
+
                 let output = DataShieldedOutput {
-                    address: addr.clone(),
+                    address: addr,
                     value,
-                    ovk: Some(*ovk),
+                    ovk,
                     memo: None,
                 };
-
-                self.sapling_outputs.push(output);
-            } else if let &[spend, ..] = &self.sapling_spends.as_slice() {
-                let output = DataShieldedOutput {
-                    address: spend.address(),
-                    value,
-                    ovk: None,
-                    memo: None,
-                };
-
-                self.sapling_outputs.push(output);
+                pads.pop();
+                pads.push(output);
             } else if let &[tin, ..] = &self.transparent_inputs.as_slice() {
+                fee = Self::calculate_zip0317_fee(
+                    self.transparent_inputs.len(),
+                    self.transaprent_outputs.len() + 1,
+                    self.sapling_spends.len(),
+                    self.sapling_outputs.len() + pads.len(),
+                );
+                let value = self.calculate_change(fee);
                 let output = DataTransparentOutput {
                     value,
                     script_pubkey: tin.script.clone(),
@@ -450,10 +493,14 @@ impl Builder {
             }
         }
 
-        Ok(self)
+        for o in pads.into_iter() {
+            self.sapling_outputs.push(o);
+        }
+
+        Ok(fee)
     }
 
-    fn into_data_input(self, fee: TxFee) -> DataInput {
+    fn into_data_input(self, fee: Amount) -> DataInput {
         DataInput {
             txfee: fee.into(),
             vec_tin: self.transparent_inputs.into_iter().collect(),
@@ -496,9 +543,8 @@ impl Builder {
             None => TxVersion::suggested_for_branch(branch),
         };
 
-        let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
-        self.setup_change(fee)?;
-        self.pad_sapling_outputs(rng)?;
+        let fee = Amount::from_u64(fee).map_err(|_| BuilderError::InvalidFee)?;
+        let fee = self.setup_change_and_pad_outputs(rng, fee)?;
 
         let mut hsmbuilder =
             zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
