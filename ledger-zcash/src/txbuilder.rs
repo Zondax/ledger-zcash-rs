@@ -25,60 +25,6 @@ use crate::{
     ZcashApp,
 };
 
-/// Represents the possible tx fee values
-#[derive(Clone, Copy, Debug)]
-pub enum TxFee {
-    /// 1000
-    Thousand,
-    /// 10'000
-    TenThousand,
-}
-
-impl From<TxFee> for u64 {
-    fn from(fee: TxFee) -> Self {
-        match fee {
-            TxFee::Thousand => 1000,
-            TxFee::TenThousand => 10_000,
-        }
-    }
-}
-
-impl From<TxFee> for Amount {
-    fn from(fee: TxFee) -> Self {
-        let fee_n = fee.into();
-
-        match fee {
-            TxFee::Thousand => Amount::from_u64(fee_n),
-            TxFee::TenThousand => Amount::from_u64(fee_n),
-        }
-        .expect("fee convert to amount")
-    }
-}
-
-impl TryFrom<usize> for TxFee {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            _ if value <= 1000 => Ok(Self::Thousand),
-            _ if value <= 10_000 => Ok(Self::TenThousand),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<u64> for TxFee {
-    type Error = ();
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        match value {
-            _ if value <= 1000 => Ok(Self::Thousand),
-            _ if value <= 10_000 => Ok(Self::TenThousand),
-            _ => Err(()),
-        }
-    }
-}
-
 /// Ergonomic ZCash transaction builder for HSM
 #[derive(Default)]
 pub struct Builder {
