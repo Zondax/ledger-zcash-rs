@@ -154,10 +154,10 @@ where
 
     match sig_version {
         SigHashVersion::NU5 => {
-            return sighashdata_v5::signature_hash_input_data_v5(tx, hash_type);
+            sighashdata_v5::signature_hash_input_data_v5(tx, hash_type)
         }
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
-            return sighashdata_v4::signature_hash_input_data_v4(tx, hash_type);
+            sighashdata_v4::signature_hash_input_data_v4(tx, hash_type)
         }
         SigHashVersion::Sprout => unimplemented!(),
     }

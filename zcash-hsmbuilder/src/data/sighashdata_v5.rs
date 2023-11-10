@@ -117,7 +117,7 @@ pub(crate) fn transparent_sequence_hash_v5<TransparentAuth: transparent::Authori
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_SEQUENCE_HASH_PERSONALIZATION_V5);
     for t_in in vin {
-        (&mut h).write_u32::<LittleEndian>(t_in.sequence).unwrap();
+        h.write_u32::<LittleEndian>(t_in.sequence).unwrap();
     }
     h.finalize()
 }
@@ -241,17 +241,14 @@ fn hash_sapling_txid_data<A: sapling::Authorization>(
     bundle: Option<&sapling::Bundle<A>>,
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION_V5);
-    match bundle {
-        Some(b) => {
-            h.write_all(hash_sapling_spends_v5(&b.shielded_spends).as_bytes())
-                .unwrap();
+    if let Some(b) = bundle {
+        h.write_all(hash_sapling_spends_v5(&b.shielded_spends).as_bytes())
+            .unwrap();
 
-            h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs).as_bytes())
-                .unwrap();
+        h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs).as_bytes())
+            .unwrap();
 
-            h.write_all(&b.value_balance.to_i64_le_bytes()).unwrap();
-        }
-        None => {}
+        h.write_all(&b.value_balance.to_i64_le_bytes()).unwrap();
     }
     h.finalize()
 }

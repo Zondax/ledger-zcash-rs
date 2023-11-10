@@ -74,7 +74,7 @@ async fn get_key_ivk() {
 
     let resp = app.get_ivk(path).await.unwrap();
 
-    let ivk = hex::encode(&resp.to_bytes());
+    let ivk = hex::encode(resp.to_bytes());
 
     assert_eq!(
         ivk,
@@ -93,7 +93,7 @@ async fn get_key_ovk() {
 
     let resp = app.get_ovk(path).await.unwrap();
 
-    let ovk = hex::encode(&resp.0);
+    let ovk = hex::encode(resp.0);
 
     assert_eq!(
         ovk,
@@ -162,7 +162,7 @@ async fn address_shielded() {
 
     assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-    let pkhex = hex::encode(&resp.public_key.to_bytes());
+    let pkhex = hex::encode(resp.public_key.to_bytes());
     println!("Public Key   {:?}", pkhex);
     println!("Address address {:?}", resp.address);
 
@@ -211,7 +211,7 @@ async fn show_address_shielded() {
 
     assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-    let pkhex = hex::encode(&resp.public_key.to_bytes());
+    let pkhex = hex::encode(resp.public_key.to_bytes());
     println!("Public Key   {:?}", pkhex);
     println!("Address address {:?}", resp.address);
 
@@ -256,7 +256,7 @@ async fn get_addr_with_div() {
     let resp = app.get_address_shielded_with_div(path, &div, true).await;
     assert!(resp.is_ok());
     let resp = resp.unwrap();
-    let pkhex = hex::encode(&resp.public_key.to_bytes());
+    let pkhex = hex::encode(resp.public_key.to_bytes());
     println!("Public Key   {:?}", pkhex);
     println!("Address address {:?}", resp.address);
 

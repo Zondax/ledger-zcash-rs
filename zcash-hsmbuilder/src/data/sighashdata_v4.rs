@@ -75,7 +75,7 @@ fn prevout_hash_v4<A: transparent::Authorization>(vins: &[transparent::TxIn<A>])
 fn sequence_hash_v4<A: transparent::Authorization>(vins: &[transparent::TxIn<A>]) -> Blake2bHash {
     let mut data = Vec::with_capacity(vins.len() * 4);
     for t_in in vins {
-        (&mut data)
+        data
             .write_u32::<LittleEndian>(t_in.sequence)
             .unwrap();
     }

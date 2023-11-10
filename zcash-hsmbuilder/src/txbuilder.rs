@@ -300,7 +300,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
                 use ripemd::{Digest as _, Ripemd160};
                 use sha2::{Digest as _, Sha256};
 
-                if hash[..] != Ripemd160::digest(&Sha256::digest(&pubkey.serialize()))[..] {
+                if hash[..] != Ripemd160::digest(Sha256::digest(&pubkey.serialize()))[..] {
                     return Err(Error::InvalidAddressHash);
                 }
             }
@@ -709,7 +709,7 @@ where
 
                 // Signature has to have "SIGHASH_ALL" appended to it
                 let mut sig_bytes: Vec<u8> = sig.serialize_der()[..].to_vec();
-                sig_bytes.extend(&[SIGHASH_ALL as u8]);
+                sig_bytes.extend(&[SIGHASH_ALL]);
 
                 // save P2PKH scriptSig
                 let script_sig =
