@@ -8,75 +8,22 @@ use crate::zcash::primitives::{
     merkle_tree::MerklePath,
     sapling::{Diversifier, Node, Note, PaymentAddress},
     transaction::{
+        builder::Progress,
         components::{Amount, OutPoint, TxOut},
-        Transaction,
+        Transaction, TxVersion,
     },
 };
 use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
-use tokio::sync::mpsc;
+use std::sync::mpsc;
 use zx_bip44::BIP44Path;
 
 use crate::{
     DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput, DataTransparentOutput,
     ZcashApp,
 };
-
-/// Represents the possible tx fee values
-#[derive(Clone, Copy, Debug)]
-pub enum TxFee {
-    /// 1000
-    Thousand,
-    /// 10'000
-    TenThousand,
-}
-
-impl From<TxFee> for u64 {
-    fn from(fee: TxFee) -> Self {
-        match fee {
-            TxFee::Thousand => 1000,
-            TxFee::TenThousand => 10_000,
-        }
-    }
-}
-
-impl From<TxFee> for Amount {
-    fn from(fee: TxFee) -> Self {
-        let fee_n = fee.into();
-
-        match fee {
-            TxFee::Thousand => Amount::from_u64(fee_n),
-            TxFee::TenThousand => Amount::from_u64(fee_n),
-        }
-        .expect("fee convert to amount")
-    }
-}
-
-impl TryFrom<usize> for TxFee {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            _ if value <= 1000 => Ok(Self::Thousand),
-            _ if value <= 10_000 => Ok(Self::TenThousand),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<u64> for TxFee {
-    type Error = ();
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        match value {
-            _ if value <= 1000 => Ok(Self::Thousand),
-            _ if value <= 10_000 => Ok(Self::TenThousand),
-            _ => Err(()),
-        }
-    }
-}
 
 /// Ergonomic ZCash transaction builder for HSM
 #[derive(Default)]
@@ -347,21 +294,26 @@ impl Builder {
     /// See <https://github.com/zcash/zcash/issues/3615>
     ///
     /// Same applies when we only have 1 output
-    fn pad_sapling_outputs<R: RngCore>(&mut self, rng: &mut R) -> Result<&mut Self, BuilderError> {
+    fn create_padded_sapling_outputs<R: RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> Result<ArrayVec<DataShieldedOutput, 2>, BuilderError> {
+        let mut rv = ArrayVec::new();
+
         if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
             let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
             for _ in 0..dummies {
-                self.add_sapling_output(
-                    None,
-                    random_payment_address(rng),
-                    Amount::from_u64(0).unwrap(),
-                    None,
-                )?;
+                rv.push(DataShieldedOutput {
+                    address: random_payment_address(rng),
+                    value: Amount::from_u64(0).unwrap(),
+                    ovk: None,
+                    memo: None,
+                });
             }
         }
 
-        Ok(self)
+        Ok(rv)
     }
 
     /// Sets the Sapling address to which any change will be sent.
@@ -374,6 +326,25 @@ impl Builder {
 }
 
 impl Builder {
+    fn calculate_zip0317_fee(
+        tins_n: usize,
+        touts_n: usize,
+        sapling_spends_n: usize,
+        sapling_outputs_n: usize,
+    ) -> Amount {
+        use std::cmp::max;
+
+        let logical_actions = max(tins_n, touts_n) + max(sapling_spends_n, sapling_outputs_n);
+
+        const MARGINAL_FEE: u64 = 5000;
+        const GRACE_ACTIONS: usize = 2;
+
+        let actions = max(GRACE_ACTIONS, logical_actions);
+
+        let rv = MARGINAL_FEE * (actions as u64);
+        Amount::from_u64(rv).unwrap()
+    }
+
     fn calculate_change(&self, fee: Amount) -> Amount {
         let tin_values = self.transparent_inputs.iter().map(|tin| tin.value);
 
@@ -401,7 +372,7 @@ impl Builder {
         }
     }
 
-    /// This takes care of setting up an output for a change address if necessary
+    /// This takes care of setting up an output for a change address if necessary (and pad sapling outputs)
     ///
     /// When a change output is necessary: if there's any leftover currency from summing all
     /// the inputs and removing all the outputs and the fee.
@@ -414,29 +385,53 @@ impl Builder {
     ///
     /// The above rules are enough to cover all cases, if all cases fail
     /// then there are no inputs to the transaction
-    fn setup_change(&mut self, fee: TxFee) -> Result<&mut Self, BuilderError> {
-        let value = self.calculate_change(fee.into());
+    fn setup_change_and_pad_outputs<R: RngCore>(
+        &mut self,
+        rng: &mut R,
+        mut fee: Amount,
+    ) -> Result<Amount, BuilderError> {
+        let value = self.calculate_change(fee);
+        let mut pads = self.create_padded_sapling_outputs(rng)?;
 
         if value != Amount::zero() {
-            if let Some((ovk, addr)) = self.change_address.as_ref() {
-                let output = DataShieldedOutput {
-                    address: addr.clone(),
-                    value,
-                    ovk: Some(*ovk),
-                    memo: None,
+            log::debug!("adding output with change");
+
+            //avoid having a single output (from the change address) when there are no spends
+            let change_to_sapling =
+                if !self.sapling_spends.is_empty() && !self.sapling_outputs.is_empty() {
+                    self.change_address
+                        .clone()
+                        .map(|(ovk, addr)| (Some(ovk), addr))
+                        .or_else(|| self.sapling_spends.get(0).map(|s| (None, s.address())))
+                } else {
+                    None
                 };
 
-                self.sapling_outputs.push(output);
-            } else if let &[spend, ..] = &self.sapling_spends.as_slice() {
+            if let Some((ovk, addr)) = change_to_sapling {
+                fee = Self::calculate_zip0317_fee(
+                    self.transparent_inputs.len(),
+                    self.transaprent_outputs.len(),
+                    self.sapling_spends.len(),
+                    self.sapling_outputs.len() + pads.len(),
+                );
+                let value = self.calculate_change(fee);
+
                 let output = DataShieldedOutput {
-                    address: spend.address(),
+                    address: addr,
                     value,
-                    ovk: None,
+                    ovk,
                     memo: None,
                 };
-
-                self.sapling_outputs.push(output);
+                pads.pop();
+                pads.push(output);
             } else if let &[tin, ..] = &self.transparent_inputs.as_slice() {
+                fee = Self::calculate_zip0317_fee(
+                    self.transparent_inputs.len(),
+                    self.transaprent_outputs.len() + 1,
+                    self.sapling_spends.len(),
+                    self.sapling_outputs.len() + pads.len(),
+                );
+                let value = self.calculate_change(fee);
                 let output = DataTransparentOutput {
                     value,
                     script_pubkey: tin.script.clone(),
@@ -449,10 +444,14 @@ impl Builder {
             }
         }
 
-        Ok(self)
+        for o in pads.into_iter() {
+            self.sapling_outputs.push(o);
+        }
+
+        Ok(fee)
     }
 
-    fn into_data_input(self, fee: TxFee) -> DataInput {
+    fn into_data_input(self, fee: Amount) -> DataInput {
         DataInput {
             txfee: fee.into(),
             vec_tin: self.transparent_inputs.into_iter().collect(),
@@ -480,7 +479,8 @@ impl Builder {
         rng: &mut R,
         height: u32,
         branch: consensus::BranchId,
-        progress_notifier: Option<mpsc::Sender<usize>>,
+        tx_version: Option<TxVersion>,
+        progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<(Transaction, SaplingMetadata), BuilderError>
     where
         R: RngCore + CryptoRng,
@@ -489,9 +489,13 @@ impl Builder {
         E: ledger_transport::Exchange + Send + Sync,
         E::Error: std::error::Error,
     {
-        let fee = TxFee::try_from(fee).map_err(|_| BuilderError::InvalidFee)?;
-        self.setup_change(fee)?;
-        self.pad_sapling_outputs(rng)?;
+        let tx_version = match tx_version {
+            Some(v) => v,
+            None => TxVersion::suggested_for_branch(branch),
+        };
+
+        let fee = Amount::from_u64(fee).map_err(|_| BuilderError::InvalidFee)?;
+        let fee = self.setup_change_and_pad_outputs(rng, fee)?;
 
         let mut hsmbuilder =
             zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
@@ -581,11 +585,11 @@ impl Builder {
 
         // building finished, time to have the ledger sign everything
         let ledger_data = hsmbuilder
-            .build_with_progress_notifier(branch, prover, progress_notifier)
+            .build_with_progress_notifier(branch, Some(tx_version), prover, progress_notifier)
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
         let _signed_hash = app
-            .checkandsign(ledger_data)
+            .checkandsign(ledger_data, tx_version)
             .await
             .map_err(|_| BuilderError::FailedToSignTx)?;
 

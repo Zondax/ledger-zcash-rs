@@ -12,13 +12,19 @@ pub enum Error {
     InvalidAmount,
     NoChangeAddress,
     SpendProof,
+    MissingSpendSig,
     SpendSig,
+    InvalidSpendSig,
+    NoSpendSig,
     TranspararentSig,
     Finalization,
     MinShieldedOuputs,
     BuilderNoKeys,
     ReadWriteError,
     InvalidOVKHashSeed,
+    AlreadyAuthorized,
+    Unauthorized,
+    UnknownAuthorization,
 }
 
 impl fmt::Display for Error {
@@ -37,8 +43,17 @@ impl fmt::Display for Error {
             Error::SpendProof => {
                 write!(f, "Failed to create Sapling spend proof")
             }
+            Error::MissingSpendSig => {
+                write!(f, "Missing Sapling spend signature(s)")
+            }
             Error::SpendSig => {
                 write!(f, "Failed to get Sapling spend signature")
+            }
+            Error::InvalidSpendSig => {
+                write!(f, "Sapling spend signature failed to verify")
+            }
+            Error::NoSpendSig => {
+                write!(f, "No Sapling spend signatures")
             }
             Error::InvalidAddressFormat => {
                 write!(f, "Incorrect format of address")
@@ -61,6 +76,15 @@ impl fmt::Display for Error {
             }
             Error::InvalidOVKHashSeed => {
                 write!(f, "Error: either OVK or hashseed should be some")
+            }
+            Error::AlreadyAuthorized => {
+                write!(f, "Error: operation not available after authorization")
+            }
+            Error::Unauthorized => {
+                write!(f, "Error: operation not available without authorization")
+            }
+            Error::UnknownAuthorization => {
+                write!(f, "Error: authorization status unknown")
             }
         }
     }

@@ -1,11 +1,12 @@
 //! Structs for building transactions.
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 use std::{
     io::{self, Write},
     marker::PhantomData,
 };
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
 
+use crate::zcash::primitives::transaction::builder::Progress;
 use crate::zcash::{
     note_encryption::NoteEncryption,
     primitives::{
@@ -28,7 +29,8 @@ use crate::zcash::{
                 GROTH_PROOF_SIZE,
             },
             sighash::{signature_hash, SignableInput, SIGHASH_ALL},
-            Authorization, Transaction, TransactionData, Unauthorized,
+            txid::TxIdDigester,
+            Authorization, Transaction, TransactionData, TxDigests, TxVersion, Unauthorized,
         },
     },
 };
@@ -70,6 +72,7 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng, A: Authoriz
     sapling_bundle: Option<sapling::Bundle<A::SaplingAuth>>,
     binding_sig: Option<Signature>,
     cached_branchid: Option<BranchId>,
+    cached_tx_version: Option<TxVersion>,
 }
 
 impl<P: consensus::Parameters> Builder<P, OsRng, hsmauth::Unauthorized> {
@@ -111,6 +114,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R, hsmauth::Un
             spends: vec![],
             outputs: vec![],
             cached_branchid: None,
+            cached_tx_version: None,
             binding_sig: None,
             transparent_bundle: None,
             sapling_bundle: None,
@@ -135,9 +139,10 @@ where
 {
     /// Retrieve the [`TransactionData`] of the current builder state
     pub fn transaction_data(&self) -> Option<TransactionData<A>> {
-        self.cached_branchid.map(|consensus_branch_id| {
+        let optionals = self.cached_tx_version.zip(self.cached_branchid);
+        optionals.map(|(cached_tx_version, consensus_branch_id)| {
             TransactionData::from_parts(
-                transaction::TxVersion::Sapling,
+                cached_tx_version,
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
@@ -159,11 +164,20 @@ where
     A: transaction::Authorization<SaplingAuth = SA, TransparentAuth = TA>,
 {
     /// Retrieve the sighash of the current builder state
-    fn sapling_sighash(&self) -> [u8; 32] {
+    fn signature_hash(&self) -> [u8; 32] {
         let data = self.transaction_data().expect("consensus branch id set");
+        let txid_parts = data.digest(TxIdDigester);
 
-        let sighash = transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded);
-
+        let sighash = match data.version() {
+            TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
+                transaction::sighash_v4::v4_signature_hash(&data, &SignableInput::Shielded)
+            }
+            TxVersion::Zip225 => transaction::sighash_v5::v5_signature_hash(
+                &data,
+                &SignableInput::Shielded,
+                &txid_parts,
+            ),
+        };
         let mut array = [0; 32];
         array.copy_from_slice(&sighash.as_ref()[..32]);
         array
@@ -286,7 +300,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
                 use ripemd::{Digest as _, Ripemd160};
                 use sha2::{Digest as _, Sha256};
 
-                if hash[..] != Ripemd160::digest(&Sha256::digest(&pubkey.serialize()))[..] {
+                if hash[..] != Ripemd160::digest(Sha256::digest(&pubkey.serialize()))[..] {
                     return Err(Error::InvalidAddressHash);
                 }
             }
@@ -350,19 +364,27 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
     pub fn build(
         &mut self,
         consensus_branch_id: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         prover: &impl HsmTxProver,
     ) -> Result<HsmTxData, Error> {
-        self.build_with_progress_notifier(consensus_branch_id, prover, None)
+        self.build_with_progress_notifier(consensus_branch_id, tx_version, prover, None)
     }
 
     pub fn build_with_progress_notifier(
         &mut self,
         consensus_branch_id: consensus::BranchId,
+        tx_version: Option<TxVersion>,
         prover: &impl HsmTxProver,
-        progress_notifier: Option<mpsc::Sender<usize>>,
+        progress_notifier: Option<mpsc::Sender<Progress>>,
     ) -> Result<HsmTxData, Error> {
         self.cached_branchid.replace(consensus_branch_id);
 
+        let tx_version = match tx_version {
+            Some(v) => v,
+            None => TxVersion::suggested_for_branch(consensus_branch_id),
+        };
+
+        self.cached_tx_version.replace(tx_version);
         //
         // Consistency checks
         //
@@ -435,7 +457,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         let binding_sig_needed = !spends.is_empty() || !outputs.is_empty();
 
         // Keep track of the total number of steps computed
-        let mut progress: usize = 0;
+        let mut progress = 0u32;
 
         // Create Sapling SpendDescriptions
         if !spends.is_empty() {
@@ -465,7 +487,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
                 // Update progress and send a notification on the channel
                 progress += 1;
-                progress_notifier.as_ref().map(|tx| tx.send(progress));
+                if let Some(sender) = progress_notifier.as_ref() {
+                    // If the send fails, we should ignore the error, not crash.
+                    let _ = sender.send(Progress::new(progress, None));
+                }
 
                 self.sapling_bundle()
                     .shielded_spends
@@ -488,25 +513,27 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
             // Update progress and send a notification on the channel
             progress += 1;
-            progress_notifier.as_ref().map(|tx| tx.send(progress));
+            if let Some(sender) = progress_notifier.as_ref() {
+                // If the send fails, we should ignore the error, not crash.
+                let _ = sender.send(Progress::new(progress, None));
+            }
 
             self.sapling_bundle().shielded_outputs.push(output_desc);
         }
 
         //
-        // Signatures
+        // Signatures -- everything but the signatures must already have been added.
         //
 
         // Add a binding signature if needed
         if binding_sig_needed {
-            let sapling_sighash = self.sapling_sighash();
-
+            let signature_hash = self.signature_hash();
             self.binding_sig = Some(
                 prover
                     .binding_sig(
                         &mut ctx,
                         self.sapling_bundle().value_balance,
-                        &sapling_sighash,
+                        &signature_hash,
                     )
                     .map_err(|()| Error::BindingSig)?,
             );
@@ -530,7 +557,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         let trans_scripts = r.unwrap();
         let hash_input = signature_hash_input_data(&self.transaction_data().unwrap(), SIGHASH_ALL);
-        log::info!("hash input: {:02x?}", hash_input);
 
         let spend_olddata = spend_old_data_fromtx(&self.spends);
         let spenddata = spend_data_hms_fromtx(
@@ -579,6 +605,7 @@ where
             sapling_bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         } = self;
 
         Builder {
@@ -593,6 +620,7 @@ where
             sapling_bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         }
     }
 
@@ -640,19 +668,37 @@ where
             {
                 //1) generate the signature message
                 // to verify the signature against
-                let sighash = transaction::sighash_v4::v4_signature_hash(
-                    &tx_data,
-                    &SignableInput::Transparent {
-                        hash_type: SIGHASH_ALL,
-                        index: i,
-                        value: info.coin.value,
-                        script_pubkey: &info.coin.script_pubkey,
-                        // for p2pkh, always the same as script_pubkey
-                        script_code: &info.coin.script_pubkey,
-                    },
-                );
+                let sighash = match tx_data.version() {
+                    TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
+                        transaction::sighash_v4::v4_signature_hash(
+                            &tx_data,
+                            &SignableInput::Transparent {
+                                hash_type: SIGHASH_ALL,
+                                index: i,
+                                value: info.coin.value,
+                                script_pubkey: &info.coin.script_pubkey,
+                                // for p2pkh, always the same as script_pubkey
+                                script_code: &info.coin.script_pubkey,
+                            },
+                        )
+                    }
+                    TxVersion::Zip225 => {
+                        let txid_parts = tx_data.digest(TxIdDigester);
+                        transaction::sighash_v5::v5_signature_hash(
+                            &tx_data,
+                            &SignableInput::Transparent {
+                                hash_type: SIGHASH_ALL,
+                                index: i,
+                                value: info.coin.value,
+                                script_pubkey: &info.coin.script_pubkey,
+                                // for p2pkh, always the same as script_pubkey
+                                script_code: &info.coin.script_pubkey,
+                            },
+                            &txid_parts,
+                        )
+                    }
+                };
 
-                log::info!("Transparent #{} sighash: {:x?}", i, sighash.as_ref());
                 let msg = secp256k1::Message::from_slice(sighash.as_ref()).expect("32 bytes");
 
                 //2) verify signature
@@ -663,7 +709,7 @@ where
 
                 // Signature has to have "SIGHASH_ALL" appended to it
                 let mut sig_bytes: Vec<u8> = sig.serialize_der()[..].to_vec();
-                sig_bytes.extend(&[SIGHASH_ALL as u8]);
+                sig_bytes.extend(&[SIGHASH_ALL]);
 
                 // save P2PKH scriptSig
                 let script_sig =
@@ -704,6 +750,7 @@ where
             sapling_bundle: _,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         } = self;
 
         Builder {
@@ -718,6 +765,7 @@ where
             sapling_bundle: bundle,
             binding_sig,
             cached_branchid,
+            cached_tx_version,
         }
     }
     /// Attempt to apply the signatures for the shielded components of the transaction
@@ -732,15 +780,15 @@ where
             ..
         } = match (self.sapling_bundle.as_ref(), signatures.len()) {
             (None, 0) => return Ok(self.with_sapling_bundle(None)),
-            (None, _) => return Err(Error::SpendSig),
-            //if we have no inputs and no signtures were passed this succeeds
+            (None, _) => return Err(Error::NoSpendSig),
+            //if we have no inputs and no signatures were passed this succeeds
             (Some(_), n) if n != self.spends.len() => {
                 log::error!(
                     "Sapling signatures necessary #{}, got #{}",
                     self.spends.len(),
                     n
                 );
-                return Err(Error::SpendSig);
+                return Err(Error::MissingSpendSig);
             }
             (Some(bundle), _) => bundle,
         };
@@ -765,9 +813,9 @@ where
         let mut all_signatures_valid: bool = true;
 
         //if we have no spends we can just skip
-        // applying the signutes and verifying
+        // applying the signatures and verifying
         if !spends.is_empty() {
-            let sighash = self.sapling_sighash();
+            let sighash = self.signature_hash();
 
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
@@ -788,7 +836,6 @@ where
 
                 let valid = rk.verify(&message, &spend_auth_sig, p_g);
 
-                log::info!("Verification of sapling spend signature: #{}", valid);
                 all_signatures_valid &= valid;
 
                 let spend = sapling::SpendDescription {
@@ -820,7 +867,7 @@ where
 
                 Ok(this)
             }
-            false => Err(Error::SpendSig),
+            false => Err(Error::InvalidSpendSig),
         }
     }
 }
@@ -830,9 +877,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 {
     /// Retrieve [`TransactionData`] parametrized with [`transaction::Authorized`]
     fn transaction_data_authorized(&self) -> Option<TransactionData<transaction::Authorized>> {
-        self.cached_branchid.map(|consensus_branch_id| {
+        let optionals = self.cached_tx_version.zip(self.cached_branchid);
+        optionals.map(|(cached_tx_version, consensus_branch_id)| {
             TransactionData::from_parts(
-                transaction::TxVersion::Sapling,
+                cached_tx_version,
                 consensus_branch_id,
                 0,
                 (self.height + DEFAULT_TX_EXPIRY_DELTA).into(),
@@ -860,22 +908,6 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         Ok((tx, tx_meta))
     }
 
-    /*
-        pub overwintered: bool,
-    pub version: u32,
-    pub version_group_id: u32,
-    pub vin: Vec<TxIn>,
-    pub vout: Vec<TxOut>,
-    pub lock_time: u32,
-    pub expiry_height: u32,
-    pub value_balance: Amount,
-    pub shielded_spends: Vec<SpendDescription>,
-    pub shielded_outputs: Vec<OutputDescription>,
-    pub joinsplits: Vec<JSDescription>,
-    pub joinsplit_pubkey: Option<[u8; 32]>,
-    pub joinsplit_sig: Option<[u8; 64]>,
-    pub binding_sig: Option<Signature>,
-     */
     /// Same as finalize, except serialized to the format understood by the JavaScript users
     pub fn finalize_js(&mut self) -> Result<Vec<u8>, Error> {
         let txdata = self

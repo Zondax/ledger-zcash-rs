@@ -26,8 +26,10 @@ pub use ledger_zondax_generic::LedgerAppError;
 mod app;
 pub use app::*;
 
-pub(crate) mod zcash;
+pub mod zcash;
 
 /// Ergonomic transaction builder
 #[path = "./txbuilder.rs"]
 pub mod builder;
+
+mod apdu_extra;
