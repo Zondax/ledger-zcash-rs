@@ -153,9 +153,7 @@ where
     let sig_version = SigHashVersion::from_tx(tx);
 
     match sig_version {
-        SigHashVersion::NU5 => {
-            sighashdata_v5::signature_hash_input_data_v5(tx, hash_type)
-        }
+        SigHashVersion::NU5 => sighashdata_v5::signature_hash_input_data_v5(tx, hash_type),
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
             sighashdata_v4::signature_hash_input_data_v4(tx, hash_type)
         }
