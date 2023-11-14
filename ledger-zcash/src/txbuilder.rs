@@ -326,7 +326,10 @@ impl Builder {
 }
 
 impl Builder {
-    fn calculate_zip0317_fee(
+    /// Calculate the fee according to ZIP-0317 for the given transaction elements
+    ///
+    /// Note: non-p2pk, joinsplits and orchard are not supported
+    pub fn calculate_zip0317_fee(
         tins_n: usize,
         touts_n: usize,
         sapling_spends_n: usize,
