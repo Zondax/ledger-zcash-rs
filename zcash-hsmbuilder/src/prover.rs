@@ -1,22 +1,5 @@
 use std::ops::{AddAssign, Neg};
 
-use crate::zcash::{
-    primitives::{
-        constants::{
-            SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
-            VALUE_COMMITMENT_VALUE_GENERATOR,
-        },
-        merkle_tree::MerklePath,
-        sapling::{
-            prover::TxProver,
-            redjubjub::{PrivateKey, PublicKey, Signature},
-            Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
-        },
-        transaction::components::Amount,
-    },
-    proofs::circuit::sapling::{Output, Spend},
-};
-
 use bellman::{
     gadgets::multipack,
     groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
@@ -28,6 +11,20 @@ use group::GroupEncoding;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
+
+use crate::zcash::{
+    primitives::{
+        constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, VALUE_COMMITMENT_VALUE_GENERATOR},
+        merkle_tree::MerklePath,
+        sapling::{
+            prover::TxProver,
+            redjubjub::{PrivateKey, PublicKey, Signature},
+            Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
+        },
+        transaction::components::Amount,
+    },
+    proofs::circuit::sapling::{Output, Spend},
+};
 
 fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is
@@ -65,10 +62,7 @@ impl SaplingProvingContext {
     /// Construct a new context to be used with a single transaction.
 
     pub fn new() -> Self {
-        SaplingProvingContext {
-            bsk: jubjub::Fr::zero(),
-            cv_sum: jubjub::ExtendedPoint::identity(),
-        }
+        SaplingProvingContext { bsk: jubjub::Fr::zero(), cv_sum: jubjub::ExtendedPoint::identity() }
     }
 
     /// Create the value commitment, re-randomized key, and proof for a Sapling
@@ -91,14 +85,12 @@ impl SaplingProvingContext {
         let mut rng = OsRng;
 
         // We create the randomness of the value commitment
-        /*
-        let mut buf = [0u8;64];
-
-        rng.fill_bytes(&mut buf);
-
-        let rcv = Fr::from_bytes_wide(&buf);
-
-         */
+        // let mut buf = [0u8;64];
+        //
+        // rng.fill_bytes(&mut buf);
+        //
+        // let rcv = Fr::from_bytes_wide(&buf);
+        //
         // Accumulate the value commitment randomness in the context
         {
             let mut tmp = rcv;
@@ -109,16 +101,15 @@ impl SaplingProvingContext {
         }
 
         // Construct the value commitment
-        let value_commitment = ValueCommitment {
-            value,
-            randomness: rcv,
-        };
+        let value_commitment = ValueCommitment { value, randomness: rcv };
 
         // Construct the viewing key
         let viewing_key = proof_generation_key.to_viewing_key();
 
         // Construct the payment address with the viewing key / diversifier
-        let payment_address = viewing_key.to_payment_address(diversifier).ok_or(())?;
+        let payment_address = viewing_key
+            .to_payment_address(diversifier)
+            .ok_or(())?;
 
         // This is the result of the re-randomization, we compute it for the caller
         let rk = PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
@@ -126,7 +117,9 @@ impl SaplingProvingContext {
         // Let's compute the nullifier while we have the position
         let note = Note {
             value,
-            g_d: diversifier.g_d().expect("was a valid diversifier before"),
+            g_d: diversifier
+                .g_d()
+                .expect("was a valid diversifier before"),
             pk_d: *payment_address.pk_d(),
             rseed,
         };
@@ -149,8 +142,7 @@ impl SaplingProvingContext {
         };
 
         // Create proof
-        let proof =
-            create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+        let proof = create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
 
         // Try to verify the proof:
         // Construct public input for circuit
@@ -211,14 +203,12 @@ impl SaplingProvingContext {
         // We construct ephemeral randomness for the value commitment. This
         // randomness is not given back to the caller, but the synthetic
         // blinding factor `bsk` is accumulated in the context.
-        /*
-        let mut buf = [0u8;64];
-
-        rng.fill_bytes(&mut buf);
-
-        let rcv = Fr::from_bytes_wide(&buf);
-
-         */
+        // let mut buf = [0u8;64];
+        //
+        // rng.fill_bytes(&mut buf);
+        //
+        // let rcv = Fr::from_bytes_wide(&buf);
+        //
         // Accumulate the value commitment randomness in the context
         {
             let mut tmp = rcv.neg(); // Outputs subtract from the total.
@@ -229,10 +219,7 @@ impl SaplingProvingContext {
         }
 
         // Construct the value commitment for the proof instance
-        let value_commitment = ValueCommitment {
-            value,
-            randomness: rcv,
-        };
+        let value_commitment = ValueCommitment { value, randomness: rcv };
 
         // We now have a full witness for the output proof.
         let instance = Output {
@@ -243,21 +230,26 @@ impl SaplingProvingContext {
         };
 
         // Create proof
-        let proof =
-            create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+        let proof = create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
 
         // Compute the actual value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
 
-        // Accumulate the value commitment in the context. We do this to check internal consistency.
+        // Accumulate the value commitment in the context. We do this to check internal
+        // consistency.
         self.cv_sum -= value_commitment; // Outputs subtract from the total.
 
         (proof, value_commitment)
     }
 
-    /// Create the bindingSig for a Sapling transaction. All calls to spend_proof()
-    /// and output_proof() must be completed before calling this function.
-    pub fn binding_sig(&self, value_balance: Amount, sighash: &[u8; 32]) -> Result<Signature, ()> {
+    /// Create the bindingSig for a Sapling transaction. All calls to
+    /// spend_proof() and output_proof() must be completed before calling
+    /// this function.
+    pub fn binding_sig(
+        &self,
+        value_balance: Amount,
+        sighash: &[u8; 32],
+    ) -> Result<Signature, ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -285,15 +277,11 @@ impl SaplingProvingContext {
 
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-        data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
+        data_to_be_signed[0 .. 32].copy_from_slice(&bvk.0.to_bytes());
+        data_to_be_signed[32 .. 64].copy_from_slice(&sighash[..]);
 
         // Sign
-        Ok(bsk.sign(
-            &data_to_be_signed,
-            &mut rng,
-            VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
-        ))
+        Ok(bsk.sign(&data_to_be_signed, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR))
     }
 }
 

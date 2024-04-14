@@ -19,9 +19,8 @@ use ff::PrimeField;
 use group::GroupEncoding;
 
 use crate::data::sighashdata::{
-    TransactionDataSighash, TransactionDataSighashV4, OVERWINTER_VERSION_GROUP_ID,
-    SAPLING_TX_VERSION, SAPLING_VERSION_GROUP_ID, SIGHASH_ANYONECANPAY, SIGHASH_MASK, SIGHASH_NONE,
-    SIGHASH_SINGLE,
+    TransactionDataSighash, TransactionDataSighashV4, OVERWINTER_VERSION_GROUP_ID, SAPLING_TX_VERSION,
+    SAPLING_VERSION_GROUP_ID, SIGHASH_ANYONECANPAY, SIGHASH_MASK, SIGHASH_NONE, SIGHASH_SINGLE,
 };
 use crate::{
     hsmauth,
@@ -45,9 +44,11 @@ const ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSOutputHas
 
 macro_rules! write_u32 {
     ($h:expr, $value:expr, $tmp:expr) => {
-        //LittleEndian::write_u32(&mut $tmp[..4],$value);
-        (&mut $tmp[..4]).write_u32::<LittleEndian>($value).unwrap();
-        $h.copy_from_slice(&$tmp[..4]);
+        // LittleEndian::write_u32(&mut $tmp[..4],$value);
+        (&mut $tmp[.. 4])
+            .write_u32::<LittleEndian>($value)
+            .unwrap();
+        $h.copy_from_slice(&$tmp[.. 4]);
     };
 }
 
@@ -75,7 +76,8 @@ fn prevout_hash_v4<A: transparent::Authorization>(vins: &[transparent::TxIn<A>])
 fn sequence_hash_v4<A: transparent::Authorization>(vins: &[transparent::TxIn<A>]) -> Blake2bHash {
     let mut data = Vec::with_capacity(vins.len() * 4);
     for t_in in vins {
-        data.write_u32::<LittleEndian>(t_in.sequence).unwrap();
+        data.write_u32::<LittleEndian>(t_in.sequence)
+            .unwrap();
     }
     Blake2bParams::new()
         .hash_length(32)
@@ -137,9 +139,7 @@ where
         .hash(&data)
 }
 
-fn shielded_outputs_hash_v4(
-    shielded_outputs: &[sapling::OutputDescription<sapling::GrothProofBytes>],
-) -> Blake2bHash {
+fn shielded_outputs_hash_v4(shielded_outputs: &[sapling::OutputDescription<sapling::GrothProofBytes>]) -> Blake2bHash {
     let mut data = Vec::with_capacity(shielded_outputs.len() * 948);
     for s_out in shielded_outputs {
         s_out.write_v4(&mut data).unwrap();
@@ -165,7 +165,7 @@ where
     write_u32!(txdata_sighash.header, header, tmp);
     write_u32!(txdata_sighash.version_id, version_group_id, tmp);
 
-    //transparent data
+    // transparent data
     // replace vin and vout with empty slices
     // if we don't have the bundle
     if let Some((vin, vout)) = tx
@@ -173,11 +173,7 @@ where
         .map(|b| (b.vin.as_slice(), b.vout.as_slice()))
         .or(Some((&[], &[])))
     {
-        update_data!(
-            txdata_sighash.prevoutshash,
-            hash_type & SIGHASH_ANYONECANPAY == 0,
-            prevout_hash_v4(vin)
-        ); //true for sighash_all
+        update_data!(txdata_sighash.prevoutshash, hash_type & SIGHASH_ANYONECANPAY == 0, prevout_hash_v4(vin)); // true for sighash_all
 
         update_data!(
             txdata_sighash.sequencehash,
@@ -185,47 +181,52 @@ where
                 && (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
                 && (hash_type & SIGHASH_MASK) != SIGHASH_NONE,
             sequence_hash_v4(vin)
-        ); //true for sighash_all
+        ); // true for sighash_all
 
-        if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE
-            && (hash_type & SIGHASH_MASK) != SIGHASH_NONE
-        {
+        if (hash_type & SIGHASH_MASK) != SIGHASH_SINGLE && (hash_type & SIGHASH_MASK) != SIGHASH_NONE {
             txdata_sighash
                 .outputshash
-                .copy_from_slice(outputs_hash_v4(vout).as_ref()); //true for sighash all
+                .copy_from_slice(outputs_hash_v4(vout).as_ref()); // true for sighash all
 
-        //TODO: single output hash? SIGHASH_SINGLE
+        // TODO: single output hash? SIGHASH_SINGLE
         } else {
-            txdata_sighash.outputshash.copy_from_slice(&[0; 32]);
+            txdata_sighash
+                .outputshash
+                .copy_from_slice(&[0; 32]);
         };
     }
 
-    //sprout data
+    // sprout data
     update_data!(
         txdata_sighash.joinsplitshash,
-        !tx.sprout_bundle().map_or(true, |b| b.joinsplits.is_empty()),
+        !tx.sprout_bundle()
+            .map_or(true, |b| b.joinsplits.is_empty()),
         {
             let bundle = tx.sprout_bundle().unwrap();
-            joinsplits_hash_v4(
-                tx.consensus_branch_id(),
-                &bundle.joinsplits,
-                &bundle.joinsplit_pubkey,
-            )
+            joinsplits_hash_v4(tx.consensus_branch_id(), &bundle.joinsplits, &bundle.joinsplit_pubkey)
         }
     );
 
-    //sapling data
+    // sapling data
     update_data!(
         txdata_sighash.shieldedspendhash,
         !tx.sapling_bundle()
             .map_or(true, |b| b.shielded_spends.is_empty()),
-        shielded_spends_hash_v4(&tx.sapling_bundle().unwrap().shielded_spends)
+        shielded_spends_hash_v4(
+            &tx.sapling_bundle()
+                .unwrap()
+                .shielded_spends
+        )
     );
     update_data!(
         txdata_sighash.shieldedoutputhash,
         !tx.sapling_bundle()
             .map_or(true, |b| b.shielded_outputs.is_empty()),
-        shielded_outputs_hash_v4(&tx.sapling_bundle().unwrap().shielded_outputs)
+        shielded_outputs_hash_v4(
+            &tx.sapling_bundle()
+                .unwrap()
+                .shielded_outputs
+        )
     );
 
     write_u32!(txdata_sighash.lock_time, tx.lock_time(), tmp);

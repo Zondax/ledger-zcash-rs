@@ -7,6 +7,7 @@ use neon_bridge::*;
 pub mod sighashdata;
 pub mod sighashdata_v4;
 pub mod sighashdata_v5;
+use serde::{Deserialize, Serialize};
 use sighashdata::TransactionDataSighash;
 
 use crate::zcash::primitives::{
@@ -17,8 +18,6 @@ use crate::zcash::primitives::{
     sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
-use serde::{Deserialize, Serialize};
-
 use crate::{
     errors::Error,
     txbuilder::{NullifierInput, OutputDescription, SpendDescription, TransparentScriptData},
@@ -71,12 +70,8 @@ pub struct InitData {
 
 impl InitData {
     pub fn to_hsm_bytes(&self) -> Vec<u8> {
-        let mut data = vec![
-            self.t_in.len() as u8,
-            self.t_out.len() as u8,
-            self.s_spend.len() as u8,
-            self.s_output.len() as u8,
-        ];
+        let mut data =
+            vec![self.t_in.len() as u8, self.t_out.len() as u8, self.s_spend.len() as u8, self.s_output.len() as u8];
 
         for info in self.t_in.iter() {
             for p in info.path.iter() {
@@ -158,9 +153,9 @@ pub struct TransparentInputBuilderInfo {
 pub struct TransparentOutputBuilderInfo {
     #[serde(deserialize_with = "script_deserialize")]
     pub address: Script,
-    //26
+    // 26
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount, //8
+    pub value: Amount, // 8
 }
 
 #[derive(Deserialize)]

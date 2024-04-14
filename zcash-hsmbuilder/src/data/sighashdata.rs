@@ -106,16 +106,40 @@ impl TransactionDataSighashV5 {
         // header_digest fields
         data.extend_from_slice(&self.header_pre_digest.version);
         data.extend_from_slice(&self.header_pre_digest.version_group_id);
-        data.extend_from_slice(&self.header_pre_digest.consensus_branch_id);
+        data.extend_from_slice(
+            &self
+                .header_pre_digest
+                .consensus_branch_id,
+        );
         data.extend_from_slice(&self.header_pre_digest.lock_time);
         data.extend_from_slice(&self.header_pre_digest.expiry_height);
         // transparent_digest fields
-        data.extend_from_slice(&self.transparent_pre_digest.prevouts_digest);
-        data.extend_from_slice(&self.transparent_pre_digest.sequence_digest);
-        data.extend_from_slice(&self.transparent_pre_digest.outputs_digest);
+        data.extend_from_slice(
+            &self
+                .transparent_pre_digest
+                .prevouts_digest,
+        );
+        data.extend_from_slice(
+            &self
+                .transparent_pre_digest
+                .sequence_digest,
+        );
+        data.extend_from_slice(
+            &self
+                .transparent_pre_digest
+                .outputs_digest,
+        );
         // sapling_digest fields
-        data.extend_from_slice(&self.sapling_pre_digest.sapling_spends_digest);
-        data.extend_from_slice(&self.sapling_pre_digest.sapling_outputs_digest);
+        data.extend_from_slice(
+            &self
+                .sapling_pre_digest
+                .sapling_spends_digest,
+        );
+        data.extend_from_slice(
+            &self
+                .sapling_pre_digest
+                .sapling_outputs_digest,
+        );
         data.extend_from_slice(&self.sapling_pre_digest.value_balance);
         // orchard_digest
         data.extend_from_slice(&self.orchard_digest);
@@ -156,7 +180,7 @@ where
         SigHashVersion::NU5 => sighashdata_v5::signature_hash_input_data_v5(tx, hash_type),
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
             sighashdata_v4::signature_hash_input_data_v4(tx, hash_type)
-        }
+        },
         SigHashVersion::Sprout => unimplemented!(),
     }
 }

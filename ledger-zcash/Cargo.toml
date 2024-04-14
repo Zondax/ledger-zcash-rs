@@ -1,9 +1,9 @@
 [package]
 name = "ledger-zcash"
 description = "Library to integrate with the Ledger Zcash app"
-version = "0.6.0"
+version = "0.7.0"
 license = "Apache-2.0"
-authors = ["Zondax GmbH <hello@zondax.ch>"]
+authors = ["Zondax AG <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
 repository = "https://github.com/Zondax/ledger-zcash-rs"
 readme = "README.md"
@@ -18,7 +18,6 @@ name = "ledger_zcash"
 [features]
 default = ["normal-zcash"]
 normal-zcash = ["zcash_primitives", "zcash-hsmbuilder/normal-zcash"]
-zecwallet-compat = ["zecw_primitives", "zcash-hsmbuilder/zecwallet-compat"]
 
 [dependencies]
 arrayvec = "0.7.2"
@@ -44,10 +43,10 @@ ledger-zondax-generic = "0.9.1"
 
 #zcash
 zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
-zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
+zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
 
 #zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+# zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 tokio = { version = "1.6", features = ["sync"] }
 educe = "0.4.19"
 
