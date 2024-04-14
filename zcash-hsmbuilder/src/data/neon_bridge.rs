@@ -1,6 +1,5 @@
 use std::str::*;
 
-use crate::HashSeed;
 use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
@@ -13,6 +12,7 @@ use crate::zcash::primitives::{
     sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
+use crate::HashSeed;
 
 pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>
 where
@@ -78,17 +78,14 @@ where
     hex::decode_to_slice(&str, &mut bytes).map_err(D::Error::custom)?;
 
     let mut akb = [0u8; 32];
-    akb.copy_from_slice(&bytes[0..32]);
+    akb.copy_from_slice(&bytes[0 .. 32]);
     let mut nskb = [0u8; 32];
-    nskb.copy_from_slice(&bytes[32..64]);
+    nskb.copy_from_slice(&bytes[32 .. 64]);
 
     let ak = SubgroupPoint::from_bytes(&akb);
     let nsk = jubjub::Fr::from_bytes(&nskb);
     if ak.is_some().into() && nsk.is_some().into() {
-        Ok(ProofGenerationKey {
-            ak: ak.unwrap(),
-            nsk: nsk.unwrap(),
-        })
+        Ok(ProofGenerationKey { ak: ak.unwrap(), nsk: nsk.unwrap() })
     } else {
         Err(D::Error::custom("error deserializing to pgk"))
     }
@@ -180,9 +177,7 @@ where
         let mut v = Vec::new();
         for item in str.iter() {
             if item.len() != 128 {
-                return Err(D::Error::custom(
-                    "not enough bytes deserializing to transparent sig",
-                ));
+                return Err(D::Error::custom("not enough bytes deserializing to transparent sig"));
             }
             let mut bytes = [0u8; 64];
             hex::decode_to_slice(item, &mut bytes).map_err(D::Error::custom)?;
@@ -205,9 +200,7 @@ where
         let mut v = Vec::new();
         for item in str.iter().take(n) {
             if item.len() != 128 {
-                return Err(D::Error::custom(
-                    "not enough bytes deserializing to transparent sig",
-                ));
+                return Err(D::Error::custom("not enough bytes deserializing to transparent sig"));
             }
             let mut bytes = [0u8; 64];
             hex::decode_to_slice(item, &mut bytes).map_err(D::Error::custom)?;

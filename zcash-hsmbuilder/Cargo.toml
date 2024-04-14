@@ -1,15 +1,15 @@
 [package]
 name = "zcash-hsmbuilder"
 description = "Library to build transactions for HSM apps"
-version = "0.4.0"
+version = "0.7.0"
 license = "Apache-2.0"
-authors = ["Zondax GmbH <hello@zondax.ch>"]
+authors = ["Zondax AG <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
 repository = "https://github.com/Zondax/ledger-zcash-rs"
 readme = "README.md"
 categories = ["authentication", "cryptography"]
 keywords = ["ledger", "nano", "apdu", "zcash"]
-edition = "2018"
+edition = "2021"
 autobenches = false
 
 [lib]
@@ -18,7 +18,6 @@ name = "zcash_hsmbuilder"
 [features]
 default = ["normal-zcash"]
 normal-zcash = [ "zcash_primitives", "zcash_proofs" ]
-zecwallet-compat = [ "zecw_primitives", "zecw_proofs", "zecw_note_encryption" ]
 #local tx prover features
 bundled-prover = ["wagyu-zcash-parameters"]
 local-prover = []
@@ -46,14 +45,10 @@ serde = { version = "1", features = ["derive"] }
 
 #zcash
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
-zcash_proofs = { version = "0.6", features = ["multicore"], optional = true }
+zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
+zcash_proofs = { version = "0.7", features = ["multicore"], optional = true }
 zcash_note_encryption = { version = "0.1", features = ["pre-zip-212"] }
 
-#zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
-zecw_proofs = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["multicore"], optional = true, package = "zcash_proofs" }
-zecw_note_encryption = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["pre-zip-212"], optional = true, package = "zcash_note_encryption" }
 tokio = { version = "1.6", features = ["sync"] }
 educe = "0.4.19"
 log = "0.4.17"

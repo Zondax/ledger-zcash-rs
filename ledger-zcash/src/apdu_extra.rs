@@ -24,7 +24,8 @@ where
     E: Exchange,
     E::Error: std::error::Error,
 {
-    /// Variant of [`ledger_zondax_generic::AppExt::send_chunks`] which sends P2 on all messages
+    /// Variant of [`ledger_zondax_generic::AppExt::send_chunks`] which sends P2
+    /// on all messages
     pub(crate) async fn send_chunks_p2_all<I: std::ops::Deref<Target = [u8]> + Send + Sync>(
         transport: &E,
         command: APDUCommand<I>,
@@ -47,7 +48,7 @@ where
 
         let mut response = transport.exchange(&command).await?;
         match response.error_code() {
-            Ok(APDUErrorCode::NoError) => {}
+            Ok(APDUErrorCode::NoError) => {},
             Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
             Err(err) => return Err(LedgerAppError::Unknown(err)),
         }
@@ -60,17 +61,11 @@ where
                 p1 = ChunkPayloadType::Last as u8
             }
 
-            let command = APDUCommand {
-                cla: command.cla,
-                ins: command.ins,
-                p1,
-                p2,
-                data: chunk.to_vec(),
-            };
+            let command = APDUCommand { cla: command.cla, ins: command.ins, p1, p2, data: chunk.to_vec() };
 
             response = transport.exchange(&command).await?;
             match response.error_code() {
-                Ok(APDUErrorCode::NoError) => {}
+                Ok(APDUErrorCode::NoError) => {},
                 Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
                 Err(err) => return Err(LedgerAppError::Unknown(err)),
             }
