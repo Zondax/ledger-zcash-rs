@@ -3,8 +3,7 @@ use std::str::*;
 use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
-
-use crate::zcash::primitives::{
+use zcash_primitives::{
     keys::OutgoingViewingKey,
     legacy::Script,
     memo::MemoBytes as Memo,
@@ -12,6 +11,7 @@ use crate::zcash::primitives::{
     sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
+
 use crate::HashSeed;
 
 pub fn outpoint_deserialize<'de, D>(deserializer: D) -> Result<OutPoint, D::Error>

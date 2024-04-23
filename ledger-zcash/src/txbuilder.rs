@@ -1,12 +1,25 @@
+/*******************************************************************************
+*   (c) 2022-2024 Zondax AG
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 use std::convert::TryFrom;
 use std::sync::mpsc;
 
 use arrayvec::ArrayVec;
 use rand_core::{CryptoRng, RngCore};
 use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
-use zx_bip44::BIP44Path;
-
-use crate::zcash::primitives::{
+use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
     legacy::TransparentAddress,
@@ -19,6 +32,8 @@ use crate::zcash::primitives::{
         Transaction, TxVersion,
     },
 };
+use zx_bip44::BIP44Path;
+
 use crate::{DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput, DataTransparentOutput, ZcashApp};
 
 /// Ergonomic ZCash transaction builder for HSM

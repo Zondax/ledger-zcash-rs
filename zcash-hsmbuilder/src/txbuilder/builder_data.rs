@@ -11,27 +11,24 @@ use group::{cofactor::CofactorGroup, GroupEncoding};
 use jubjub::SubgroupPoint;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
-
-use crate::zcash::{
-    note_encryption::NoteEncryption,
-    primitives::{
-        consensus,
-        keys::OutgoingViewingKey,
-        legacy::{Script, TransparentAddress},
-        memo::MemoBytes as Memo,
-        merkle_tree::MerklePath,
-        sapling::{
-            note_encryption::sapling_note_encryption, Diversifier, Node, Note, PaymentAddress, ProofGenerationKey,
-            Rseed,
-        },
-        transaction::{
-            self,
-            components::{sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
-            sighash::{signature_hash, SignableInput, SIGHASH_ALL},
-            TransactionData,
-        },
+use zcash_note_encryption::NoteEncryption;
+use zcash_primitives::{
+    consensus,
+    keys::OutgoingViewingKey,
+    legacy::{Script, TransparentAddress},
+    memo::MemoBytes as Memo,
+    merkle_tree::MerklePath,
+    sapling::{
+        note_encryption::sapling_note_encryption, Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::{
+        self,
+        components::{sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
+        sighash::{signature_hash, SignableInput, SIGHASH_ALL},
+        TransactionData,
     },
 };
+
 use crate::{data::HashSeed, errors::Error, txbuilder::hsmauth, txprover::HsmTxProver};
 
 const OUT_PLAINTEXT_SIZE: usize = 32 + // pk_d
@@ -96,7 +93,7 @@ impl SaplingOutput {
         ctx: &mut PR::SaplingProvingContext,
         rng: &mut R,
         params: &P,
-    ) -> crate::zcash::primitives::transaction::components::OutputDescription<
+    ) -> zcash_primitives::transaction::components::OutputDescription<
         <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
     > {
         let mut encryptor =
@@ -135,7 +132,7 @@ impl SaplingOutput {
 
         let ephemeral_key = encryptor.epk().to_bytes().into();
 
-        crate::zcash::primitives::transaction::components::OutputDescription {
+        zcash_primitives::transaction::components::OutputDescription {
             cv,
             cmu,
             ephemeral_key,
@@ -298,13 +295,13 @@ pub struct OutputDescription {
 
 impl
     From<
-        &crate::zcash::primitives::transaction::components::OutputDescription<
+        &zcash_primitives::transaction::components::OutputDescription<
             <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
         >,
     > for OutputDescription
 {
     fn from(
-        from: &crate::zcash::primitives::transaction::components::OutputDescription<
+        from: &zcash_primitives::transaction::components::OutputDescription<
             <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
         >
     ) -> Self {

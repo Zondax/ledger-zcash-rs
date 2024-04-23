@@ -1,3 +1,18 @@
+/*******************************************************************************
+*   (c) 2022-2024 Zondax AG
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 use std::ops::{AddAssign, Neg};
 
 use bellman::{
@@ -11,20 +26,17 @@ use group::GroupEncoding;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-
-use crate::zcash::{
-    primitives::{
-        constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, VALUE_COMMITMENT_VALUE_GENERATOR},
-        merkle_tree::MerklePath,
-        sapling::{
-            prover::TxProver,
-            redjubjub::{PrivateKey, PublicKey, Signature},
-            Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
-        },
-        transaction::components::Amount,
+use zcash_primitives::{
+    constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, VALUE_COMMITMENT_VALUE_GENERATOR},
+    merkle_tree::MerklePath,
+    sapling::{
+        prover::TxProver,
+        redjubjub::{PrivateKey, PublicKey, Signature},
+        Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
     },
-    proofs::circuit::sapling::{Output, Spend},
+    transaction::components::Amount,
 };
+use zcash_proofs::circuit::sapling::{Output, Spend};
 
 fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is

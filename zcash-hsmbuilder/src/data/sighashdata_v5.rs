@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2022 Zondax GmbH
+*   (c) 2022 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -20,6 +20,14 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams, State};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
+use zcash_primitives::{
+    consensus,
+    transaction::{
+        self,
+        components::{sapling, sprout, transparent, Amount},
+        TransactionData, TxVersion,
+    },
+};
 
 use crate::{
     data::sighashdata::{
@@ -27,14 +35,6 @@ use crate::{
         SIGHASH_SINGLE,
     },
     hsmauth,
-    zcash::primitives::{
-        consensus,
-        transaction::{
-            self,
-            components::{sapling, sprout, transparent, Amount},
-            TransactionData, TxVersion,
-        },
-    },
 };
 
 /// TxId tree root personalization

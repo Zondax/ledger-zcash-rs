@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2018-2022 Zondax GmbH
+*   (c) 2018-2022 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 use std::marker::PhantomData;
 
-use crate::zcash::primitives::transaction::{
+use zcash_primitives::transaction::{
     self,
     components::{
         sapling::Authorization as SAuthorization, transparent::Authorization as TAuthorization, GROTH_PROOF_SIZE,
@@ -42,7 +42,9 @@ impl<T: TAuthorization, S: SAuthorization> Authorization for MixedAuthorization<
 }
 
 pub mod sapling {
-    use crate::{txbuilder::SpendDescriptionInfo, zcash::primitives::transaction::components::sapling};
+    use zcash_primitives::transaction::components::sapling;
+
+    use crate::txbuilder::SpendDescriptionInfo;
 
     /// Unauthorized Sapling bundle - Similar to v0.5
     ///
@@ -63,11 +65,9 @@ pub mod sapling {
 }
 
 pub mod transparent {
-    use crate::{
-        errors::Error,
-        txbuilder::TransparentInputInfo,
-        zcash::primitives::transaction::{self, components::transparent, TransactionData},
-    };
+    use zcash_primitives::transaction::{self, components::transparent, TransactionData};
+
+    use crate::{errors::Error, txbuilder::TransparentInputInfo};
 
     /// Unauthorized Transparent bundle - Similar to v0.5
     ///
@@ -98,7 +98,7 @@ pub mod transparent {
                 .collect()
         }
 
-        fn input_scriptpubkeys(&self) -> Vec<crate::zcash::primitives::legacy::Script> {
+        fn input_scriptpubkeys(&self) -> Vec<zcash_primitives::legacy::Script> {
             self.inputs
                 .iter()
                 .map(|input| input.coin.script_pubkey.clone())

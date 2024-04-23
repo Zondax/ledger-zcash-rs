@@ -16,9 +16,7 @@ autobenches = false
 name = "zcash_hsmbuilder"
 
 [features]
-default = ["normal-zcash"]
-normal-zcash = [ "zcash_primitives", "zcash_proofs" ]
-#local tx prover features
+default = ["zcash_proofs"]
 bundled-prover = ["wagyu-zcash-parameters"]
 local-prover = []
 
@@ -45,7 +43,8 @@ serde = { version = "1", features = ["derive"] }
 
 #zcash
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
+
+zcash_primitives = { version = "0.7", features = ["transparent-inputs"] }
 zcash_proofs = { version = "0.7", features = ["multicore"], optional = true }
 zcash_note_encryption = { version = "0.1", features = ["pre-zip-212"] }
 

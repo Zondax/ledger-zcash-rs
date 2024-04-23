@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2022 Zondax GmbH
+*   (c) 2022-2024 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -33,10 +33,7 @@ use zcash_hsmbuilder::{
     },
     txbuilder::SaplingMetadata,
 };
-use zx_bip44::BIP44Path;
-
-use crate::builder::{Builder, BuilderError};
-use crate::zcash::primitives::{
+use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
     legacy::Script,
@@ -48,6 +45,9 @@ use crate::zcash::primitives::{
         Transaction, TxVersion,
     },
 };
+use zx_bip44::BIP44Path;
+
+use crate::builder::{Builder, BuilderError};
 
 const INS_GET_IVK: u8 = 0xf0;
 const INS_GET_OVK: u8 = 0xf1;
