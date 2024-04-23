@@ -1,3 +1,18 @@
+/*******************************************************************************
+*   (c) 2022-2024 Zondax AG
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 //! Abstractions over the proving system and parameters for ease of use.
 
 use std::path::Path;
@@ -6,21 +21,19 @@ use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use ff::Field;
 use rand_core::OsRng;
+use zcash_primitives::{
+    merkle_tree::MerklePath,
+    sapling::{
+        redjubjub::{PublicKey, Signature},
+        Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::components::{Amount, GROTH_PROOF_SIZE},
+};
+use zcash_proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters};
 
 use crate::{
     prover::SaplingProvingContext,
     txbuilder::{OutputDescription, SpendDescription},
-    zcash::{
-        primitives::{
-            merkle_tree::MerklePath,
-            sapling::{
-                redjubjub::{PublicKey, Signature},
-                Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
-            },
-            transaction::components::{Amount, GROTH_PROOF_SIZE},
-        },
-        proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters},
-    },
 };
 
 // Circuit names
@@ -265,7 +278,7 @@ impl HsmTxProver for LocalTxProver {
     }
 }
 
-impl crate::zcash::primitives::sapling::prover::TxProver for LocalTxProver {
+impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
     type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {

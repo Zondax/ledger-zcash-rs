@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2022 Zondax GmbH
+*   (c) 2022 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -17,22 +17,20 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
+use zcash_primitives::{
+    consensus,
+    transaction::{
+        self,
+        components::{sapling, sprout, transparent},
+        TransactionData,
+    },
+};
 
 use crate::data::sighashdata::{
     TransactionDataSighash, TransactionDataSighashV4, OVERWINTER_VERSION_GROUP_ID, SAPLING_TX_VERSION,
     SAPLING_VERSION_GROUP_ID, SIGHASH_ANYONECANPAY, SIGHASH_MASK, SIGHASH_NONE, SIGHASH_SINGLE,
 };
-use crate::{
-    hsmauth,
-    zcash::primitives::{
-        consensus,
-        transaction::{
-            self,
-            components::{sapling, sprout, transparent},
-            TransactionData,
-        },
-    },
-};
+use crate::hsmauth;
 
 const ZCASH_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"ZcashSigHash";
 const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";

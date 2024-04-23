@@ -16,8 +16,7 @@ autobenches = false
 name = "ledger_zcash"
 
 [features]
-default = ["normal-zcash"]
-normal-zcash = ["zcash_primitives", "zcash-hsmbuilder/normal-zcash"]
+default = ["zcash_primitives"]
 
 [dependencies]
 arrayvec = "0.7.2"
@@ -34,21 +33,18 @@ ripemd = "0.1"
 secp256k1 = { version = "0.21", default-features = false }
 sha2 = "0.9"
 thiserror = "1.0.31"
-zx-bip44 = "0.1.0"
-
 serde = { version = "1.0", features = ["derive"] }
 
+zx-bip44 = "0.1.0"
 ledger-transport = "0.9.0"
 ledger-zondax-generic = "0.9.1"
+
+tokio = { version = "1.20", features = ["sync"] }
+educe = "0.4.19"
 
 #zcash
 zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
 zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
-
-#zecwallet-compat
-# zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
-tokio = { version = "1.6", features = ["sync"] }
-educe = "0.4.19"
 
 [dev-dependencies]
 futures = "0.3.21"

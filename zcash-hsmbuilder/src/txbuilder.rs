@@ -1,3 +1,18 @@
+/*******************************************************************************
+*   (c) 2022-2024 Zondax AG
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 //! Structs for building transactions.
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
@@ -8,32 +23,30 @@ use std::{
 
 use group::GroupEncoding;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
-
-use crate::zcash::primitives::transaction::builder::Progress;
-use crate::zcash::{
-    note_encryption::NoteEncryption,
-    primitives::{
-        consensus::{self, BranchId},
-        constants::SPENDING_KEY_GENERATOR,
-        keys::OutgoingViewingKey,
-        legacy::{Script, TransparentAddress},
-        memo::MemoBytes as Memo,
-        merkle_tree::MerklePath,
-        sapling::{
-            note_encryption::sapling_note_encryption,
-            redjubjub::{PublicKey, Signature},
-            util::generate_random_rseed,
-            Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
-        },
-        transaction::{
-            self,
-            components::{amount::DEFAULT_FEE, sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
-            sighash::{signature_hash, SignableInput, SIGHASH_ALL},
-            txid::TxIdDigester,
-            Authorization, Transaction, TransactionData, TxDigests, TxVersion, Unauthorized,
-        },
+use zcash_note_encryption::NoteEncryption;
+use zcash_primitives::transaction::builder::Progress;
+use zcash_primitives::{
+    consensus::{self, BranchId},
+    constants::SPENDING_KEY_GENERATOR,
+    keys::OutgoingViewingKey,
+    legacy::{Script, TransparentAddress},
+    memo::MemoBytes as Memo,
+    merkle_tree::MerklePath,
+    sapling::{
+        note_encryption::sapling_note_encryption,
+        redjubjub::{PublicKey, Signature},
+        util::generate_random_rseed,
+        Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::{
+        self,
+        components::{amount::DEFAULT_FEE, sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
+        sighash::{signature_hash, SignableInput, SIGHASH_ALL},
+        txid::TxIdDigester,
+        Authorization, Transaction, TransactionData, TxDigests, TxVersion, Unauthorized,
     },
 };
+
 use crate::{
     data::{sighashdata::signature_hash_input_data, HashSeed, HsmTxData},
     errors::Error,

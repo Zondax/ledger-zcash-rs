@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2022 Zondax GmbH
+*   (c) 2022 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -17,20 +17,16 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
-
-use crate::{
-    data::sighashdata_v4,
-    data::sighashdata_v5,
-    hsmauth,
-    zcash::primitives::{
-        consensus,
-        transaction::{
-            self,
-            components::{sapling, sprout, transparent},
-            TransactionData, TxDigests,
-        },
+use zcash_primitives::{
+    consensus,
+    transaction::{
+        self,
+        components::{sapling, sprout, transparent},
+        TransactionData, TxDigests,
     },
 };
+
+use crate::{data::sighashdata_v4, data::sighashdata_v5, hsmauth};
 
 pub const SIGHASH_NONE: u8 = 0x02;
 pub const SIGHASH_SINGLE: u8 = 0x03;
@@ -158,7 +154,7 @@ enum SigHashVersion {
 
 impl SigHashVersion {
     fn from_tx<A: transaction::Authorization>(tx: &TransactionData<A>) -> Self {
-        use crate::zcash::primitives::transaction::TxVersion;
+        use zcash_primitives::transaction::TxVersion;
         match tx.version() {
             TxVersion::Sprout(_) => SigHashVersion::Sprout,
             TxVersion::Overwinter => SigHashVersion::Overwinter,

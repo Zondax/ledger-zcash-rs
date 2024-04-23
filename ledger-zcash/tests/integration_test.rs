@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2018-2022 Zondax GmbH
+*   (c) 2022-2024 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ mod zcash;
 
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zcash::*;
-use zcash::primitives::{
+use zcash_primitives::{
     consensus::{self, TestNetwork},
     keys::OutgoingViewingKey,
     legacy::Script,
