@@ -114,10 +114,10 @@ async fn get_nf() {
         .await
         .unwrap();
     let vec_nf = resp.to_vec();
-    let expected_nf: Vec<u8> = ([
+    let expected_nf: Vec<u8> = [
         37, 241, 242, 207, 94, 44, 43, 195, 29, 7, 182, 111, 77, 84, 240, 144, 173, 137, 177, 152, 137, 63, 18, 173,
         174, 68, 125, 223, 132, 226, 20, 90,
-    ])
+    ]
     .to_vec();
     assert_eq!(vec_nf, expected_nf);
 }
@@ -137,11 +137,11 @@ async fn address_unshielded() {
 
     assert_eq!(resp.public_key.len(), PK_LEN_SECP261K1);
 
-    let pkhex = hex::encode(&resp.public_key[..]);
-    println!("Public Key   {:?}", pkhex);
+    let pk_hex = hex::encode(&resp.public_key[..]);
+    println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
-    assert_eq!(pkhex, "0239511e41d70cf95ead40aae910cb3b6790f561f9077aaa1a8e091eeb78a8f26a");
+    assert_eq!(pk_hex, "0239511e41d70cf95ead40aae910cb3b6790f561f9077aaa1a8e091eeb78a8f26a");
     assert_eq!(resp.address, "t1csLd5XeD1MyNM8gW8JfCzy8BYyidj6aCV");
 }
 
@@ -160,11 +160,11 @@ async fn address_shielded() {
 
     assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-    let pkhex = hex::encode(resp.public_key.to_bytes());
-    println!("Public Key   {:?}", pkhex);
+    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
-    assert_eq!(pkhex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
+    assert_eq!(pk_hex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
     assert_eq!(resp.address, "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3");
 }
 
@@ -183,11 +183,11 @@ async fn show_address_unshielded() {
 
     assert_eq!(resp.public_key.len(), PK_LEN_SECP261K1);
 
-    let pkhex = hex::encode(&resp.public_key[..]);
-    println!("Public Key   {:?}", pkhex);
+    let pk_hex = hex::encode(&resp.public_key[..]);
+    println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
-    assert_eq!(pkhex, "0239511e41d70cf95ead40aae910cb3b6790f561f9077aaa1a8e091eeb78a8f26a");
+    assert_eq!(pk_hex, "0239511e41d70cf95ead40aae910cb3b6790f561f9077aaa1a8e091eeb78a8f26a");
     assert_eq!(resp.address, "t1csLd5XeD1MyNM8gW8JfCzy8BYyidj6aCV");
 }
 
@@ -206,11 +206,11 @@ async fn show_address_shielded() {
 
     assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
 
-    let pkhex = hex::encode(resp.public_key.to_bytes());
-    println!("Public Key   {:?}", pkhex);
+    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
-    assert_eq!(pkhex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
+    assert_eq!(pk_hex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
     assert_eq!(resp.address, "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3");
 }
 
@@ -246,11 +246,11 @@ async fn get_addr_with_div() {
         .await;
     assert!(resp.is_ok());
     let resp = resp.unwrap();
-    let pkhex = hex::encode(resp.public_key.to_bytes());
-    println!("Public Key   {:?}", pkhex);
+    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
-    assert_eq!(pkhex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
+    assert_eq!(pk_hex, "c69e979c6763c1b09238dc6bd5dcbf35360df95dcadf8c0fa25dcbedaaf6057538b812d06656726ea27667");
     assert_eq!(resp.address, "zs1c60f08r8v0qmpy3cm34ath9lx5mqm72aet0ccrazth97m2hkq46n3wqj6pn9vunw5fmxwclltd3");
 }
 

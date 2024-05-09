@@ -24,15 +24,15 @@ use std::{convert::TryFrom, path::Path, str};
 use byteorder::{LittleEndian, WriteBytesExt};
 use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
-use ledger_zondax_generic::{App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version};
-use sha2::{Digest, Sha256};
-use zcash_hsmbuilder::{
+use ledger_zcash_builder::{
     data::{
         HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
         TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
     },
     txbuilder::SaplingMetadata,
 };
+use ledger_zondax_generic::{App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version};
+use sha2::{Digest, Sha256};
 use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
@@ -165,7 +165,6 @@ pub struct DataTransparentInput {
     /// BIP44 path for transparent input key derivation
     pub path: BIP44Path,
     /// Public key belonging to the secret key (of the BIP44 path)
-    #[educe(Debug(trait = "std::fmt::Display"))]
     pub pk: secp256k1::PublicKey,
     /// UTXO of transparent input
     pub prevout: OutPoint,
@@ -511,7 +510,7 @@ where
         let builder: Builder =
             Builder::try_from(input).map_err(|e: BuilderError| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        let prover = zcash_hsmbuilder::txprover::LocalTxProver::new(
+        let prover = ledger_zcash_builder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
