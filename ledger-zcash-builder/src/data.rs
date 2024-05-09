@@ -216,7 +216,7 @@ pub struct OutputBuilderInfo {
 #[derive(Debug, Deserialize)]
 pub struct TransactionSignatures {
     #[serde(deserialize_with = "t_sig_deserialize")]
-    pub transparent_sigs: Vec<secp256k1::Signature>,
+    pub transparent_sigs: Vec<secp256k1::ecdsa::Signature>,
     #[serde(deserialize_with = "s_sig_deserialize")]
     pub spend_sigs: Vec<Signature>,
 }

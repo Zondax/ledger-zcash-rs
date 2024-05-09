@@ -165,7 +165,7 @@ where
     Ok(rseed)
 }
 
-pub fn t_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<secp256k1::Signature>, D::Error>
+pub fn t_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<secp256k1::ecdsa::Signature>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -181,7 +181,7 @@ where
             }
             let mut bytes = [0u8; 64];
             hex::decode_to_slice(item, &mut bytes).map_err(D::Error::custom)?;
-            let s = secp256k1::Signature::from_compact(&bytes).map_err(D::Error::custom)?;
+            let s = secp256k1::ecdsa::Signature::from_compact(&bytes).map_err(D::Error::custom)?;
             v.push(s);
         }
         Ok(v)
