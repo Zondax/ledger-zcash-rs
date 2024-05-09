@@ -1,7 +1,7 @@
 [package]
-name = "zcash-hsmbuilder"
+name = "ledger-zcash-builder"
 description = "Library to build transactions for HSM apps"
-version = "0.7.0"
+version = "0.11.0"
 license = "Apache-2.0"
 authors = ["Zondax AG <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
@@ -13,7 +13,7 @@ edition = "2021"
 autobenches = false
 
 [lib]
-name = "zcash_hsmbuilder"
+name = "ledger_zcash_builder"
 
 [features]
 default = ["zcash_proofs"]
@@ -33,11 +33,11 @@ hex = { version = "0.4", default-features = false }
 jubjub = { version = "0.9", default-features = false }
 lazy_static = "1"
 pairing = { version = "0.22" }
-rand = { version = "0.8", default-features = false }
-rand_core = "0.6"
+rand = { version = "0.8.5", default-features = false }
+rand_core = "0.6.4"
 ripemd = "0.1"
 secp256k1 = { version = "0.21" }
-sha2 = "0.9"
+sha2 = "0.10.8"
 serde_derive = "1"
 serde = { version = "1", features = ["derive"] }
 

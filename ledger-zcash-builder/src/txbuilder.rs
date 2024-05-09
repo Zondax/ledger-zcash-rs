@@ -316,7 +316,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
                 use ripemd::{Digest as _, Ripemd160};
                 use sha2::{Digest as _, Sha256};
 
-                if hash[..] != Ripemd160::digest(Sha256::digest(&pubkey.serialize()))[..] {
+                if hash[..] != Ripemd160::digest(Sha256::digest(pubkey.serialize()))[..] {
                     return Err(Error::InvalidAddressHash);
                 }
             },

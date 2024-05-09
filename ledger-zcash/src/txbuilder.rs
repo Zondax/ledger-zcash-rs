@@ -17,8 +17,8 @@ use std::convert::TryFrom;
 use std::sync::mpsc;
 
 use arrayvec::ArrayVec;
+use ledger_zcash_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use rand_core::{CryptoRng, RngCore};
-use zcash_hsmbuilder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
@@ -176,10 +176,10 @@ impl Builder {
 
         let pkh = {
             use ripemd::{Digest as _, Ripemd160};
-            use sha2::{Digest as _, Sha256};
+            use sha2::Sha256;
 
             let serialized = key.serialize();
-            let sha = Sha256::digest(&serialized);
+            let sha = Sha256::digest(serialized);
 
             let mut ripemd = Ripemd160::new();
             ripemd.update(&sha[..]);
@@ -376,11 +376,11 @@ impl Builder {
 
         let inputs = tin_values
             .chain(spends_values)
-            .try_fold(Amount::zero(), |acc, x| (acc + x));
+            .try_fold(Amount::zero(), |acc, x| acc + x);
 
         let outputs = tout_amounts
             .chain(soutputs_values)
-            .try_fold(Amount::zero(), |acc, x| (acc + x));
+            .try_fold(Amount::zero(), |acc, x| acc + x);
 
         if let (Some(balance), Some(expense)) = (inputs, outputs) {
             (balance - expense - fee).unwrap_or_else(Amount::zero)
@@ -526,10 +526,11 @@ impl Builder {
         let fee = Amount::from_u64(fee).map_err(|_| BuilderError::InvalidFee)?;
         let fee = self.setup_change_and_pad_outputs(rng, fee)?;
 
-        let mut hsmbuilder = zcash_hsmbuilder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
+        let mut hsmbuilder =
+            ledger_zcash_builder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.into_data_input(fee);
-        log::info!("Bulding TX with: {:?}", &input);
+        log::info!("Building TX with: {:?}", &input);
         app.init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;
