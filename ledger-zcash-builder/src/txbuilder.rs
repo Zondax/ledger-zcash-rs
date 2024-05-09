@@ -651,7 +651,7 @@ where
     /// transaction
     pub fn add_signatures_transparent(
         self,
-        signatures: Vec<secp256k1::Signature>, // get from ledger
+        signatures: Vec<secp256k1::ecdsa::Signature>, // get from ledger
     ) -> Result<Builder<P, R, MixedAuthorization<transparent::Authorized, SA>>, Error> {
         let tx_data = self
             .transaction_data()
@@ -720,7 +720,7 @@ where
                 // 2) verify signature
                 if authorization
                     .secp
-                    .verify(&msg, &sig, &info.pubkey)
+                    .verify_ecdsa(&msg, &sig, &info.pubkey)
                     .is_err()
                 {
                     log::error!("Error verifying transparent sig #{}", i);
