@@ -43,7 +43,7 @@ tokio = { version = "1.20", features = ["sync"] }
 educe = "0.4.19"
 
 #zcash
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
+zcash-hsmbuilder = { path = "../ledger-zcash-builder", default-features = false }
 zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
 
 [dev-dependencies]
