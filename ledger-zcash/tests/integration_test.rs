@@ -21,6 +21,7 @@ use zx_bip44::BIP44Path;
 mod zcash;
 
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
+use ledger_zcash::config::{PK_LEN_SAPLING, PK_LEN_SECP261K1};
 use ledger_zcash::*;
 use zcash_primitives::{
     consensus::{self, TestNetwork},

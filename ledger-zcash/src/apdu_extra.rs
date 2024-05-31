@@ -24,8 +24,31 @@ where
     E: Exchange,
     E::Error: std::error::Error,
 {
-    /// Variant of [`ledger_zondax_generic::AppExt::send_chunks`] which sends P2
-    /// on all messages
+    /// Handles the error response from APDU exchange.
+    ///
+    /// # Arguments
+    /// * `response` - The response from the APDU exchange.
+    ///
+    /// # Returns
+    /// A result indicating success or containing a specific ledger application error.
+    fn handle_response_error(response: &APDUAnswer<E::AnswerType>) -> Result<(), LedgerAppError<E::Error>> {
+        match response.error_code() {
+            Ok(APDUErrorCode::NoError) => Ok(()),
+            Ok(err) => Err(LedgerAppError::AppSpecific(err as _, err.description())),
+            Err(err) => Err(LedgerAppError::Unknown(err)),
+        }
+    }
+
+    /// Sends chunks of a message with P2 set on all messages.
+    /// This is a variant of the `send_chunks` method which specifically sets P2 for all chunks.
+    ///
+    /// # Arguments
+    /// * `transport` - The transport layer used for communication.
+    /// * `command` - The initial APDU command.
+    /// * `message` - The message to be sent in chunks.
+    ///
+    /// # Returns
+    /// A result containing the final APDU answer or a ledger application error.
     pub(crate) async fn send_chunks_p2_all<I: std::ops::Deref<Target = [u8]> + Send + Sync>(
         transport: &E,
         command: APDUCommand<I>,
@@ -46,12 +69,9 @@ where
 
         let p2 = command.p2;
 
+        // Initial exchange with the transport layer
         let mut response = transport.exchange(&command).await?;
-        match response.error_code() {
-            Ok(APDUErrorCode::NoError) => {},
-            Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
-            Err(err) => return Err(LedgerAppError::Unknown(err)),
-        }
+        Self::handle_response_error(&response)?;
 
         // Send message chunks
         let last_chunk_index = chunks.len() - 1;
@@ -64,11 +84,7 @@ where
             let command = APDUCommand { cla: command.cla, ins: command.ins, p1, p2, data: chunk.to_vec() };
 
             response = transport.exchange(&command).await?;
-            match response.error_code() {
-                Ok(APDUErrorCode::NoError) => {},
-                Ok(err) => return Err(LedgerAppError::AppSpecific(err as _, err.description())),
-                Err(err) => return Err(LedgerAppError::Unknown(err)),
-            }
+            Self::handle_response_error(&response)?;
         }
 
         Ok(response)

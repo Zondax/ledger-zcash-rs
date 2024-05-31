@@ -26,8 +26,8 @@ use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
 use ledger_zcash_builder::{
     data::{
-        HashSeed, HsmTxData, InitData, OutputBuilderInfo, ShieldedOutputData, ShieldedSpendData, SpendBuilderInfo,
-        TinData, ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+        HashSeed, HsmTxData, InitData, OutputBuilderInfo, SaplingInData, SaplingOutData, SpendBuilderInfo, TinData,
+        ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
     },
     txbuilder::SaplingMetadata,
 };
@@ -48,92 +48,7 @@ use zcash_primitives::{
 use zx_bip44::BIP44Path;
 
 use crate::builder::{Builder, BuilderError};
-
-const INS_GET_IVK: u8 = 0xf0;
-const INS_GET_OVK: u8 = 0xf1;
-const INS_GET_NF: u8 = 0xf2;
-const INS_INIT_TX: u8 = 0xa0;
-const INS_EXTRACT_SPEND: u8 = 0xa1;
-const INS_EXTRACT_OUTPUT: u8 = 0xa2;
-const INS_CHECKANDSIGN: u8 = 0xa3;
-const INS_EXTRACT_SPENDSIG: u8 = 0xa4;
-const INS_EXTRACT_TRANSSIG: u8 = 0xa5;
-const INS_GET_DIV_LIST: u8 = 0x09;
-
-const CLA: u8 = 0x85;
-const INS_GET_ADDR_SECP256K1: u8 = 0x01;
-const INS_GET_ADDR_SAPLING: u8 = 0x11;
-const INS_GET_ADDR_SAPLING_DIV: u8 = 0x10;
-
-/// Lenght of diversifier index
-const DIV_INDEX_SIZE: usize = 11;
-/// Diversifier length
-const DIV_SIZE: usize = 11;
-/// get div list returns 20 diversifiers
-const DIV_LIST_SIZE: usize = 220;
-
-/// OVK size
-const OVK_SIZE: usize = 32;
-
-/// IVK size
-const IVK_SIZE: usize = 32;
-
-/// NF size
-const NF_SIZE: usize = 32;
-
-/// note commitment size
-const NOTE_COMMITMENT_SIZE: usize = 32;
-
-/// sha256 digest size
-const SHA256_DIGEST_SIZE: usize = 32;
-
-/// AK size
-const AK_SIZE: usize = 32;
-
-/// NSK size
-const NSK_SIZE: usize = 32;
-
-/// ALPHA size
-const ALPHA_SIZE: usize = 32;
-
-/// RCV size
-const RCV_SIZE: usize = 32;
-
-/// Spenddata length: AK (32) + NSK (32) + Alpha(32) + RCV (32)
-const SPENDDATA_SIZE: usize = AK_SIZE + NSK_SIZE + ALPHA_SIZE + RCV_SIZE;
-
-/// RCM size
-const RSEED_SIZE: usize = 32;
-
-/// hashseed size
-const HASHSEED_SIZE: usize = 32;
-
-/// outputdata length: RCV (32) + RCM (32) +
-const OUTPUTDATA_SIZE: usize = RCV_SIZE + RSEED_SIZE;
-
-/// outputdata length: RCV (32) + RCM (32) + Hashseed (32)
-const OUTPUTDATA_HASHSEED_SIZE: usize = RCV_SIZE + RSEED_SIZE + HASHSEED_SIZE;
-
-/// Public Key Length (secp256k1)
-pub const PK_LEN_SECP261K1: usize = 33;
-
-/// Public Key Length (sapling)
-pub const PK_LEN_SAPLING: usize = 43;
-
-// T_IN input size: BIP44-path (20) + script (26) + value (8)
-const T_IN_INPUT_SIZE: usize = 54;
-
-// T_OUT input size: script (26) + value (8)
-const T_OUT_INPUT_SIZE: usize = 34;
-
-// S_SPEND input size: zip32-path (4) + address (43) + value (8)
-const S_SPEND_INPUT_SIZE: usize = 55;
-
-// S_SPEND input size: address (43) + value (8) + memotype (1) + ovk(32)
-const S_OUT_INPUT_SIZE: usize = 84;
-
-// Signature size for transparent and shielded signatures
-const SIG_SIZE: usize = 64;
+use crate::config::*;
 
 type PublicKeySecp256k1 = [u8; PK_LEN_SECP261K1];
 
@@ -227,7 +142,7 @@ pub struct DataShieldedSpend {
 }
 
 impl DataShieldedSpend {
-    /// Reetrieve the PaymentAddress that the note was paid to
+    /// Retrieve the PaymentAddress that the note was paid to
     pub fn address(&self) -> PaymentAddress {
         PaymentAddress::from_parts(self.diversifier, self.note.pk_d)
             // if we have a note then pk_d is not the identity
@@ -235,8 +150,8 @@ impl DataShieldedSpend {
     }
 
     /// Take the fields needed to send to ledger
-    pub fn to_init_data(&self) -> ShieldedSpendData {
-        ShieldedSpendData {
+    pub fn to_init_data(&self) -> SaplingInData {
+        SaplingInData {
             path: self.path,
             address: self.address(),
             // if we have a note the amount is in range
@@ -281,8 +196,8 @@ pub struct DataShieldedOutput {
 impl DataShieldedOutput {
     /// Constructs the fields needed to send to ledger
     /// Ledger only checks memo-type, not the content
-    pub fn to_init_data(&self) -> ShieldedOutputData {
-        ShieldedOutputData {
+    pub fn to_init_data(&self) -> SaplingOutData {
+        SaplingOutData {
             address: self.address.clone(),
             value: self.value,
             memo_type: self
@@ -568,9 +483,9 @@ where
         address
             .public_key
             .copy_from_slice(&response_data[.. PK_LEN_SECP261K1]);
-        address.address = str::from_utf8(&response_data[PK_LEN_SECP261K1 ..])
+        str::from_utf8(&response_data[PK_LEN_SECP261K1 ..])
             .map_err(|_e| LedgerAppError::Utf8)?
-            .to_owned();
+            .clone_into(&mut address.address);
 
         Ok(address)
     }
@@ -613,9 +528,9 @@ where
 
         let mut address = AddressShielded { public_key: addr, address: "".to_string() };
 
-        address.address = str::from_utf8(&response_data[PK_LEN_SAPLING ..])
+        str::from_utf8(&response_data[PK_LEN_SAPLING ..])
             .map_err(|_e| LedgerAppError::Utf8)?
-            .to_owned();
+            .clone_into(&mut address.address);
 
         Ok(address)
     }
@@ -701,9 +616,9 @@ where
 
         let mut address = AddressShielded { public_key: addr, address: "".to_string() };
 
-        address.address = str::from_utf8(&response_data[PK_LEN_SAPLING ..])
+        str::from_utf8(&response_data[PK_LEN_SAPLING ..])
             .map_err(|_e| LedgerAppError::Utf8)?
-            .to_owned();
+            .clone_into(&mut address.address);
 
         Ok(address)
     }
@@ -883,14 +798,17 @@ where
         rseedb.copy_from_slice(&bytes[RCV_SIZE .. RCV_SIZE + RSEED_SIZE]);
 
         let rseed = Rseed::AfterZip212(rseedb);
-        let hashseed = match bytes.len() {
-            OUTPUTDATA_HASHSEED_SIZE => {
-                let mut seed = [0u8; HASHSEED_SIZE];
-                seed.copy_from_slice(&bytes[RCV_SIZE + RSEED_SIZE .. OUTPUTDATA_HASHSEED_SIZE]);
-                Some(HashSeed(seed))
-            },
-            _ => None,
+
+        let outputdata_hashseed_size = RCV_SIZE + RSEED_SIZE + HASHSEED_SIZE;
+
+        let hashseed = if bytes.len() == outputdata_hashseed_size {
+            let mut seed = [0u8; HASHSEED_SIZE];
+            seed.copy_from_slice(&bytes[RCV_SIZE + RSEED_SIZE .. outputdata_hashseed_size]);
+            Some(HashSeed(seed))
+        } else {
+            None
         };
+
         Ok((rcv, rseed, hashseed))
     }
 

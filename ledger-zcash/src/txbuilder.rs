@@ -422,13 +422,12 @@ impl Builder {
                     .map(|(ovk, addr)| (Some(ovk), addr))
                     .or_else(|| {
                         self.sapling_spends
-                            .get(0)
+                            .first()
                             .map(|s| (None, s.address()))
                     })
             } else {
                 None
             };
-
             if let Some((ovk, addr)) = change_to_sapling {
                 fee = Self::calculate_zip0317_fee(
                     self.transparent_inputs.len(),

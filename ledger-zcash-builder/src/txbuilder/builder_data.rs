@@ -93,9 +93,8 @@ impl SaplingOutput {
         ctx: &mut PR::SaplingProvingContext,
         rng: &mut R,
         params: &P,
-    ) -> zcash_primitives::transaction::components::OutputDescription<
-        <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
-    > {
+    ) -> transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof>
+    {
         let mut encryptor =
             sapling_note_encryption::<R, P>(self.ovk, self.note.clone(), self.to.clone(), self.memo, rng);
 
@@ -132,14 +131,7 @@ impl SaplingOutput {
 
         let ephemeral_key = encryptor.epk().to_bytes().into();
 
-        zcash_primitives::transaction::components::OutputDescription {
-            cv,
-            cmu,
-            ephemeral_key,
-            enc_ciphertext,
-            out_ciphertext,
-            zkproof,
-        }
+        transaction::components::OutputDescription { cv, cmu, ephemeral_key, enc_ciphertext, out_ciphertext, zkproof }
     }
 }
 
@@ -195,18 +187,18 @@ impl SaplingMetadata {
 }
 
 impl From<sapling::builder::SaplingMetadata> for SaplingMetadata {
-    fn from(txmeta: sapling::builder::SaplingMetadata) -> Self {
+    fn from(tx_meta: sapling::builder::SaplingMetadata) -> Self {
         let mut spends = vec![];
         let mut outputs = vec![];
 
         let mut i = 0;
-        while let Some(ix) = txmeta.spend_index(i) {
+        while let Some(ix) = tx_meta.spend_index(i) {
             spends.push(ix);
             i += 1;
         }
 
         i = 0;
-        while let Some(ix) = txmeta.output_index(i) {
+        while let Some(ix) = tx_meta.output_index(i) {
             outputs.push(ix);
             i += 1;
         }
@@ -218,7 +210,7 @@ impl From<sapling::builder::SaplingMetadata> for SaplingMetadata {
 #[derive(Clone)]
 pub struct NullifierInput {
     pub rcm_old: [u8; 32],
-    pub notepos: [u8; 8],
+    pub note_position: [u8; 8],
 }
 
 impl NullifierInput {
@@ -227,7 +219,7 @@ impl NullifierInput {
         mut writer: W,
     ) -> io::Result<()> {
         writer.write_all(&self.rcm_old)?;
-        writer.write_all(&self.notepos)
+        writer.write_all(&self.note_position)
     }
 }
 
@@ -294,14 +286,11 @@ pub struct OutputDescription {
 }
 
 impl
-    From<
-        &zcash_primitives::transaction::components::OutputDescription<
-            <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
-        >,
-    > for OutputDescription
+    From<&transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof>>
+    for OutputDescription
 {
     fn from(
-        from: &zcash_primitives::transaction::components::OutputDescription<
+        from: &transaction::components::OutputDescription<
             <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
         >
     ) -> Self {
@@ -358,8 +347,10 @@ pub fn output_data_hsm_fromtx(
 pub fn spend_old_data_fromtx(data: &[SpendDescriptionInfo]) -> Vec<NullifierInput> {
     let mut v = Vec::new();
     for info in data.iter() {
-        let n =
-            NullifierInput { rcm_old: info.note.rcm().to_bytes(), notepos: info.merkle_path.position.to_le_bytes() };
+        let n = NullifierInput {
+            rcm_old: info.note.rcm().to_bytes(),
+            note_position: info.merkle_path.position.to_le_bytes(),
+        };
         v.push(n);
     }
     v

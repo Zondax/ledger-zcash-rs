@@ -174,7 +174,7 @@ impl SaplingProvingContext {
         }
         public_input[4] = anchor;
 
-        // Add the nullifier through multiscalar packing
+        // Add the nullifier through multi-scalar packing
         {
             let nullifier = multipack::bytes_to_bits_le(&nullifier.0);
             let nullifier = multipack::compute_multipacking(&nullifier);
@@ -260,7 +260,7 @@ impl SaplingProvingContext {
     pub fn binding_sig(
         &self,
         value_balance: Amount,
-        sighash: &[u8; 32],
+        sig_hash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
@@ -290,7 +290,7 @@ impl SaplingProvingContext {
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
         data_to_be_signed[0 .. 32].copy_from_slice(&bvk.0.to_bytes());
-        data_to_be_signed[32 .. 64].copy_from_slice(&sighash[..]);
+        data_to_be_signed[32 .. 64].copy_from_slice(&sig_hash[..]);
 
         // Sign
         Ok(bsk.sign(&data_to_be_signed, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR))

@@ -40,47 +40,47 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct TinData {
-    pub path: [u32; 5],
+    pub path: [u32; 5], // Expected: Array of 5 u32 values
     #[serde(deserialize_with = "script_deserialize")]
-    pub address: Script,
+    pub address: Script, // Expected: Hex-encoded string representing a Script
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ToutData {
     #[serde(deserialize_with = "script_deserialize")]
-    pub address: Script,
+    pub address: Script, // Expected: Hex-encoded string representing a Script
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ShieldedSpendData {
-    pub path: u32,
+pub struct SaplingInData {
+    pub path: u32, // Expected: Single u32 value
     #[serde(deserialize_with = "s_address_deserialize")]
-    pub address: PaymentAddress,
+    pub address: PaymentAddress, // Expected: Hex-encoded string representing a PaymentAddress
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ShieldedOutputData {
+pub struct SaplingOutData {
     #[serde(deserialize_with = "s_address_deserialize")]
-    pub address: PaymentAddress,
+    pub address: PaymentAddress, // Expected: Hex-encoded string representing a PaymentAddress
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
-    pub memo_type: u8,
+    pub value: Amount, // Expected: u64 value representing an Amount
+    pub memo_type: u8, // Expected: Single byte value
     #[serde(deserialize_with = "ovk_deserialize")]
-    pub ovk: Option<OutgoingViewingKey>,
+    pub ovk: Option<OutgoingViewingKey>, // Expected: Optional hex-encoded string representing an OutgoingViewingKey
 }
 
 #[derive(Debug, Deserialize)]
 pub struct InitData {
     pub t_in: Vec<TinData>,
     pub t_out: Vec<ToutData>,
-    pub s_spend: Vec<ShieldedSpendData>,
-    pub s_output: Vec<ShieldedOutputData>,
+    pub s_spend: Vec<SaplingInData>,
+    pub s_output: Vec<SaplingOutData>,
 }
 
 impl InitData {
@@ -154,20 +154,20 @@ impl HsmTxData {
 
 #[derive(Debug, Deserialize)]
 pub struct TransparentInputBuilderInfo {
-    #[serde(deserialize_with = "outpoint_deserialize")]
-    pub outp: OutPoint,
+    #[serde(deserialize_with = "t_outpoint_deserialize")]
+    pub outp: OutPoint, // Expected: Hex-encoded string representing an OutPoint
     #[serde(deserialize_with = "t_pk_deserialize")]
-    pub pk: secp256k1::PublicKey,
+    pub pk: secp256k1::PublicKey, // Expected: Hex-encoded string representing a PublicKey
     #[serde(deserialize_with = "script_deserialize")]
-    pub address: Script,
+    pub address: Script, // Expected: Hex-encoded string representing a Script
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TransparentOutputBuilderInfo {
     #[serde(deserialize_with = "script_deserialize")]
-    pub address: Script,
+    pub address: Script, // Expected: Hex-encoded string representing a Script
     // 26
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount, // 8
@@ -176,19 +176,19 @@ pub struct TransparentOutputBuilderInfo {
 #[derive(Deserialize)]
 pub struct SpendBuilderInfo {
     #[serde(deserialize_with = "pgk_deserialize")]
-    pub proofkey: ProofGenerationKey,
+    pub proofkey: ProofGenerationKey, // Expected: Hex-encoded string representing a ProofGenerationKey
     #[serde(deserialize_with = "fr_deserialize")]
-    pub rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr, // Expected: Hex-encoded string representing a Fr
     #[serde(deserialize_with = "fr_deserialize")]
-    pub alpha: jubjub::Fr,
+    pub alpha: jubjub::Fr, // Expected: Hex-encoded string representing a Fr
     #[serde(deserialize_with = "s_address_deserialize")]
-    pub address: PaymentAddress,
+    pub address: PaymentAddress, // Expected: Hex-encoded string representing a PaymentAddress
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
     #[serde(deserialize_with = "merkle_path_deserialize")]
-    pub witness: MerklePath<Node>,
+    pub witness: MerklePath<Node>, // Expected: Hex-encoded string representing a MerklePath<Node>
     #[serde(deserialize_with = "rseed_deserialize")]
-    pub rseed: Rseed,
+    pub rseed: Rseed, // Expected: Hex-encoded string representing a Rseed
 }
 
 /// An outgoing viewing key
@@ -198,25 +198,25 @@ pub struct HashSeed(pub [u8; 32]);
 #[derive(Debug, Deserialize)]
 pub struct OutputBuilderInfo {
     #[serde(deserialize_with = "fr_deserialize")]
-    pub rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr, // Expected: Hex-encoded string representing a Fr
     #[serde(deserialize_with = "rseed_deserialize")]
-    pub rseed: Rseed,
+    pub rseed: Rseed, // Expected: Hex-encoded string representing a Rseed
     #[serde(deserialize_with = "ovk_deserialize")]
-    pub ovk: Option<OutgoingViewingKey>,
+    pub ovk: Option<OutgoingViewingKey>, // Expected: Optional hex-encoded string representing an OutgoingViewingKey
     #[serde(deserialize_with = "s_address_deserialize")]
-    pub address: PaymentAddress,
+    pub address: PaymentAddress, // Expected: Hex-encoded string representing a PaymentAddress
     #[serde(deserialize_with = "amount_deserialize")]
-    pub value: Amount,
+    pub value: Amount, // Expected: u64 value representing an Amount
     #[serde(deserialize_with = "memo_deserialize")]
-    pub memo: Option<Memo>,
+    pub memo: Option<Memo>, // Expected: Optional hex-encoded string representing a Memo
     #[serde(deserialize_with = "hashseed_deserialize")]
-    pub hash_seed: Option<HashSeed>,
+    pub hash_seed: Option<HashSeed>, // Expected: Optional hex-encoded string representing a HashSeed
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TransactionSignatures {
     #[serde(deserialize_with = "t_sig_deserialize")]
-    pub transparent_sigs: Vec<secp256k1::ecdsa::Signature>,
+    pub transparent_sigs: Vec<secp256k1::ecdsa::Signature>, // Expected: List of hex-encoded strings representing secp256k1::ecdsa::Signature
     #[serde(deserialize_with = "s_sig_deserialize")]
-    pub spend_sigs: Vec<Signature>,
+    pub sapling_sigs: Vec<Signature>, // Expected: List of hex-encoded strings representing Signature
 }
