@@ -10,10 +10,10 @@ members = [
 opt-level = "s"
 overflow-checks = true
 
-[patch.crates-io]
-ledger-transport = { path = "../ledger-rs/ledger-transport" }
-ledger-zondax-generic = { path = "../ledger-rs/ledger-zondax-generic" }
-ledger-transport-hid = { path = "../ledger-rs/ledger-transport-hid" }
+#[patch.crates-io]
+#ledger-transport = { path = "../ledger-rs/ledger-transport" }
+#ledger-zondax-generic = { path = "../ledger-rs/ledger-zondax-generic" }
+#ledger-transport-hid = { path = "../ledger-rs/ledger-transport-hid" }
 
 ledger-zcash = { path = "ledger-zcash" }
 ledger-zcash-builder = { path = "ledger-zcash-builder" }
