@@ -21,7 +21,7 @@ bundled-prover = ["wagyu-zcash-parameters"]
 local-prover = []
 
 [dependencies]
-tokio = { version = "1.37", features = ["sync"] }
+tokio = { version = "1.38", features = ["sync"] }
 educe = "0.5"
 log = "0.4"
 lazy_static = "1"
