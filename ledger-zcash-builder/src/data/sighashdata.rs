@@ -153,6 +153,7 @@ enum SigHashVersion {
 }
 
 impl SigHashVersion {
+    //noinspection RsNonExhaustiveMatch
     fn from_tx<A: transaction::Authorization>(tx: &TransactionData<A>) -> Self {
         use zcash_primitives::transaction::TxVersion;
         match tx.version() {

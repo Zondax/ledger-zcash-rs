@@ -13,23 +13,32 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-//! Support library for Zcash Ledger Nano S/X apps
+//! This module provides a support library for Zcash applications on Ledger Nano S and X devices.
+//! It includes functionality to handle APDU commands and errors, and to interact with the Zcash blockchain.
 
 #![deny(warnings, trivial_casts, trivial_numeric_casts)]
 #![deny(unused_import_braces, unused_qualifications)]
 #![deny(missing_docs)]
 
+/// Re-export APDU-related types from the `ledger_transport` crate.
 pub use ledger_transport::{APDUAnswer, APDUCommand, APDUErrorCode};
+/// Re-export error handling utilities from the `ledger_zondax_generic` crate.
 pub use ledger_zondax_generic::LedgerAppError;
 
-/// Ledger app
+/// Module containing the main functionality of the Ledger app.
 mod app;
+/// Re-export everything from the `app` module.
 pub use app::*;
 
+/// Module for Zcash-specific functionality.
 pub mod zcash;
 
-/// Ergonomic transaction builder
+/// Module providing an ergonomic interface for building transactions.
 #[path = "./txbuilder.rs"]
 pub mod builder;
 
+/// Module containing additional APDU command handling.
 mod apdu_extra;
+
+/// Module containing configuration constants for the application.
+pub mod config;

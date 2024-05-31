@@ -31,9 +31,9 @@ pub enum Error {
     SpendSig,
     InvalidSpendSig,
     NoSpendSig,
-    TranspararentSig,
+    TransparentSig,
     Finalization,
-    MinShieldedOuputs,
+    MinShieldedOutputs,
     BuilderNoKeys,
     ReadWriteError,
     InvalidOVKHashSeed,
@@ -77,13 +77,13 @@ impl fmt::Display for Error {
                 write!(f, "Incorrect format of address")
             },
             Error::InvalidAddressHash => write!(f, "Incorrect hash of address"),
-            Error::TranspararentSig => {
+            Error::TransparentSig => {
                 write!(f, "Failed to sign transparent inputs")
             },
             Error::Finalization => {
                 write!(f, "Failed to build complete transaction")
             },
-            Error::MinShieldedOuputs => {
+            Error::MinShieldedOutputs => {
                 write!(f, "Not enough shielded outputs for transaction")
             },
             Error::BuilderNoKeys => {
@@ -93,7 +93,7 @@ impl fmt::Display for Error {
                 write!(f, "Error writing/reading bytes to/from vector")
             },
             Error::InvalidOVKHashSeed => {
-                write!(f, "Error: either OVK or hashseed should be some")
+                write!(f, "Error: either OVK or hash_seed should be some")
             },
             Error::AlreadyAuthorized => {
                 write!(f, "Error: operation not available after authorization")

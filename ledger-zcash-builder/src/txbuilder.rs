@@ -161,7 +161,7 @@ impl<P, R, A> Builder<P, R, A>
 where
     P: consensus::Parameters,
     R: RngCore + CryptoRng,
-    A: transaction::Authorization,
+    A: Authorization,
     A::TransparentAuth: Clone,
     A::SaplingAuth: Clone,
 {
@@ -191,8 +191,9 @@ where
     R: RngCore + CryptoRng,
     TA: Clone + transaction::sighash::TransparentAuthorizingContext,
     SA: Clone + sapling::Authorization<Proof = sapling::GrothProofBytes>,
-    A: transaction::Authorization<SaplingAuth = SA, TransparentAuth = TA>,
+    A: Authorization<SaplingAuth = SA, TransparentAuth = TA>,
 {
+    //noinspection RsNonExhaustiveMatch
     /// Retrieve the sighash of the current builder state
     fn signature_hash(&self) -> [u8; 32] {
         let data = self
@@ -208,6 +209,7 @@ where
                 transaction::sighash_v5::v5_signature_hash(&data, &SignableInput::Shielded, &txid_parts)
             },
         };
+
         let mut array = [0; 32];
         array.copy_from_slice(&sighash.as_ref()[.. 32]);
         array
@@ -388,10 +390,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
     pub fn build_with_progress_notifier(
         &mut self,
-        consensus_branch_id: consensus::BranchId,
+        consensus_branch_id: BranchId,
         tx_version: Option<TxVersion>,
         prover: &impl HsmTxProver,
-        progress_notifier: Option<mpsc::Sender<Progress>>,
+        progress_notifier: Option<Sender<Progress>>,
     ) -> Result<HsmTxData, Error> {
         self.cached_branchid
             .replace(consensus_branch_id);
@@ -475,7 +477,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         // Pad Sapling outputs
         if !spends.is_empty() && outputs.len() < MIN_SHIELDED_OUTPUTS {
-            return Err(Error::MinShieldedOuputs);
+            return Err(Error::MinShieldedOutputs);
         }
 
         // Record if we'll need a binding signature
@@ -647,6 +649,7 @@ where
         }
     }
 
+    //noinspection RsNonExhaustiveMatch
     /// Attempt to apply the signatures for the transparent components of the
     /// transaction
     pub fn add_signatures_transparent(
@@ -659,14 +662,14 @@ where
         let transparent::Bundle { vin, vout, authorization } =
             match (self.transparent_bundle.as_ref(), signatures.len()) {
                 (None, 0) => return Ok(self.with_transparent_bundle(None)),
-                (None, _) => return Err(Error::TranspararentSig),
+                (None, _) => return Err(Error::TransparentSig),
                 // this check takes into account also when we have no inputs
                 // since we don't have inputs we also get 0 signatures
                 // and below the other if will take care of skipping the
                 // signature verifications etc
                 (Some(bundle), n) if n != bundle.authorization.inputs.len() => {
                     log::error!("Transparent signatures necessary #{}, got #{}", bundle.authorization.inputs.len(), n);
-                    return Err(Error::TranspararentSig);
+                    return Err(Error::TransparentSig);
                 },
                 (Some(bundle), _) => bundle,
             };
@@ -724,7 +727,7 @@ where
                     .is_err()
                 {
                     log::error!("Error verifying transparent sig #{}", i);
-                    return Err(Error::TranspararentSig);
+                    return Err(Error::TransparentSig);
                 }
 
                 // Signature has to have "SIGHASH_ALL" appended to it

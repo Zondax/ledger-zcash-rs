@@ -13,6 +13,11 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
+//! This library provides tools for building and proving Zcash transactions
+//! for hardware security modules (HSMs). It includes functionality for
+//! handling various cryptographic operations and transaction components
+//! specific to the Zcash protocol.
+
 #![allow(
     dead_code,
     unused_imports,
@@ -46,12 +51,20 @@ use zcash_primitives::{
 
 mod prover;
 
+/// Module containing error types and handling for the library.
 pub mod errors;
 
+/// Module containing data structures and utilities for transaction building.
 pub mod data;
+
+/// Module providing the transaction building logic.
 pub mod txbuilder;
+
+/// Module providing transaction proving capabilities.
 pub mod txprover;
 
 // Re exports
+/// Re-exporting the `Builder` and `hsmauth` from `txbuilder` for easier access.
 pub use crate::txbuilder::{hsmauth, Builder};
+/// Re-exporting `LocalTxProver` from `txprover` for easier access.
 pub use crate::txprover::LocalTxProver;
