@@ -38,6 +38,8 @@ use zcash_primitives::{
 };
 use zcash_proofs::circuit::sapling::{Output, Spend};
 
+use crate::errors::ProverError;
+
 fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is
     // the value)
@@ -92,7 +94,8 @@ impl SaplingProvingContext {
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
         rcv: jubjub::Fr,
-    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, PublicKey), ()> {
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, PublicKey), ProverError> {
+        log::info!("spend_proof");
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -121,7 +124,7 @@ impl SaplingProvingContext {
         // Construct the payment address with the viewing key / diversifier
         let payment_address = viewing_key
             .to_payment_address(diversifier)
-            .ok_or(())?;
+            .ok_or(ProverError::InvalidDiversifier)?;
 
         // This is the result of the re-randomization, we compute it for the caller
         let rk = PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
@@ -154,7 +157,7 @@ impl SaplingProvingContext {
         };
 
         // Create proof
-        let proof = create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+        let proof = create_random_proof(instance, proving_key, &mut rng).map_err(ProverError::Synthesis)?;
 
         // Try to verify the proof:
         // Construct public input for circuit
@@ -186,7 +189,10 @@ impl SaplingProvingContext {
         }
 
         // Verify the proof
-        verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+        verify_proof(verifying_key, &proof, &public_input[..]).map_err(|e| {
+            log::error!("Proof verification failed with {}", e.to_string());
+            ProverError::Verification(e)
+        })?;
 
         // Compute value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
@@ -208,7 +214,7 @@ impl SaplingProvingContext {
         value: u64,
         proving_key: &Parameters<Bls12>,
         rcv: jubjub::Fr,
-    ) -> (Proof<Bls12>, jubjub::ExtendedPoint) {
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint), ProverError> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -242,7 +248,7 @@ impl SaplingProvingContext {
         };
 
         // Create proof
-        let proof = create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+        let proof = create_random_proof(instance, proving_key, &mut rng).map_err(ProverError::Synthesis)?;
 
         // Compute the actual value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
@@ -251,7 +257,7 @@ impl SaplingProvingContext {
         // consistency.
         self.cv_sum -= value_commitment; // Outputs subtract from the total.
 
-        (proof, value_commitment)
+        Ok((proof, value_commitment))
     }
 
     /// Create the bindingSig for a Sapling transaction. All calls to
@@ -261,7 +267,7 @@ impl SaplingProvingContext {
         &self,
         value_balance: Amount,
         sig_hash: &[u8; 32],
-    ) -> Result<Signature, ()> {
+    ) -> Result<Signature, ProverError> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -276,21 +282,21 @@ impl SaplingProvingContext {
         // against our derived bvk.
         {
             // Compute value balance
-            let value_balance = compute_value_balance_hsm(value_balance).ok_or(())?;
+            let value_balance = compute_value_balance_hsm(value_balance).ok_or(ProverError::InvalidBalance)?;
 
             // Subtract value_balance from cv_sum to get final bvk
             let final_bvk = self.cv_sum - value_balance;
 
             // The result should be the same, unless the provided valueBalance is wrong.
             if bvk.0 != final_bvk {
-                return Err(());
+                return Err(ProverError::InvalidBalance);
             }
         }
 
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0 .. 32].copy_from_slice(&bvk.0.to_bytes());
-        data_to_be_signed[32 .. 64].copy_from_slice(&sig_hash[..]);
+        data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
+        data_to_be_signed[32..64].copy_from_slice(&sig_hash[..]);
 
         // Sign
         Ok(bsk.sign(&data_to_be_signed, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR))

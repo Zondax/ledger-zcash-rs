@@ -195,10 +195,8 @@ where
 {
     //noinspection RsNonExhaustiveMatch
     /// Retrieve the sighash of the current builder state
-    fn signature_hash(&self) -> [u8; 32] {
-        let data = self
-            .transaction_data()
-            .expect("consensus branch id set");
+    fn signature_hash(&self) -> Option<[u8; 32]> {
+        let data = self.transaction_data()?;
         let txid_parts = data.digest(TxIdDigester);
 
         let sighash = match data.version() {
@@ -211,8 +209,8 @@ where
         };
 
         let mut array = [0; 32];
-        array.copy_from_slice(&sighash.as_ref()[.. 32]);
-        array
+        array.copy_from_slice(&sighash.as_ref()[..32]);
+        Some(array)
     }
 }
 
@@ -246,11 +244,13 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, TA: transparent::Authoriz
         proofkey: ProofGenerationKey, // get from ledger
         rcv: jubjub::Fr,              // get from ledger
     ) -> Result<(), Error> {
+        log::info!("Adding Sapling spend");
         // Consistency check: all anchors must equal the first one
         let cmu = Node::new(note.cmu().into());
         if let Some(anchor) = self.anchor {
             let path_root: bls12_381::Scalar = merkle_path.root(cmu).into();
             if path_root != anchor {
+                log::error!("Anchor mismatch");
                 return Err(Error::AnchorMismatch);
             }
         } else {
@@ -309,6 +309,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
         utxo: OutPoint,
         coin: TxOut,
     ) -> Result<(), Error> {
+        log::info!("add_transparent_input");
+
         if coin.value.is_negative() {
             return Err(Error::InvalidAmount);
         }
@@ -349,6 +351,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng, SA: sapling::Authorizatio
         to: Script,
         value: Amount,
     ) -> Result<(), Error> {
+        log::info!("add_transparent_output");
         if value.is_negative() {
             return Err(Error::InvalidAmount);
         }
@@ -367,7 +370,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
     /// Prepares a transaction to be transmitted to the HSM from the configured
     /// spends and outputs.
     ///
-    /// Upon success, returns the structure that can be serialized in in the
+    /// Upon success, returns the structure that can be serialized in the
     /// format understood by the HSM and subsequently transmitted via the
     /// appropriate method.
     ///
@@ -395,6 +398,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         prover: &impl HsmTxProver,
         progress_notifier: Option<Sender<Progress>>,
     ) -> Result<HsmTxData, Error> {
+        log::info!("build_with_progress_notifier");
         self.cached_branchid
             .replace(consensus_branch_id);
 
@@ -405,51 +409,57 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         self.cached_tx_version
             .replace(tx_version);
+
         // Consistency checks
-        //
         // Valid change
-        let change = self
+        let sapling_value = self
             .sapling_bundle
             .as_ref()
             .map(|bundle| bundle.value_balance)
-            .unwrap_or(Amount::zero())
-            - self.fee
-            + self
-                .transparent_bundle
-                .as_ref()
-                .map(|bundle| {
-                    bundle
-                        .authorization
-                        .inputs
-                        .iter()
-                        .map(|input| input.coin.value)
-                        // poor man's .sum
-                        .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
-                })
-                .unwrap_or(Amount::zero())
-            - self
-                .transparent_bundle
-                .as_ref()
-                .map(|bundle| {
-                    bundle
-                        .vout
-                        .iter()
-                        .map(|output| output.value)
-                        .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
-                })
-                .unwrap_or(Amount::zero());
+            .unwrap_or(Amount::zero());
+        let input_value = self
+            .transparent_bundle
+            .as_ref()
+            .map(|bundle| {
+                bundle
+                    .authorization
+                    .inputs
+                    .iter()
+                    .map(|input| input.coin.value)
+                    // poor man's .sum
+                    .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
+            })
+            .unwrap_or(Amount::zero());
+        let output_value = self
+            .transparent_bundle
+            .as_ref()
+            .map(|bundle| {
+                bundle
+                    .vout
+                    .iter()
+                    .map(|output| output.value)
+                    .fold(Amount::zero(), |x, acc| (x + acc).unwrap())
+            })
+            .unwrap_or(Amount::zero());
+
+        log::debug!("Sapling value: {:?}", sapling_value);
+        log::debug!("Input value: {:?}", input_value);
+        log::debug!("Output value: {:?}", output_value);
+        log::debug!("Fee: {:?}", self.fee);
+
+        let change = sapling_value + input_value + output_value - self.fee;
         let change = change.unwrap();
 
         if change.is_negative() {
+            log::error!("Change is negative {:?}", change);
             return Err(Error::ChangeIsNegative);
         }
 
         // Change output
-        //
-
         if change.is_positive() {
             // Send change to the specified change address. If no change address
             // was set, then error as Ledger otherwise needs to give keys and randomness.
+            log::error!("No change address");
             return Err(Error::NoChangeAddress);
         }
 
@@ -477,6 +487,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
 
         // Pad Sapling outputs
         if !spends.is_empty() && outputs.len() < MIN_SHIELDED_OUTPUTS {
+            log::error!("Not enough shielded outputs");
             return Err(Error::MinShieldedOutputs);
         }
 
@@ -511,7 +522,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
                         spend.merkle_path.clone(),
                         spend.rcv,
                     )
-                    .map_err(|()| Error::SpendProof)?;
+                    .map_err(|_| Error::SpendProof)?;
 
                 // Update progress and send a notification on the channel
                 progress += 1;
@@ -552,15 +563,16 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         }
 
         // Signatures -- everything but the signatures must already have been added.
-        //
-
         // Add a binding signature if needed
         if binding_sig_needed {
-            let signature_hash = self.signature_hash();
+            let signature_hash = self
+                .signature_hash()
+                .ok_or(Error::BindingSig)?;
+
             self.binding_sig = Some(
                 prover
                     .binding_sig(&mut ctx, self.sapling_bundle().value_balance, &signature_hash)
-                    .map_err(|()| Error::BindingSig)?,
+                    .map_err(|_| Error::BindingSig)?,
             );
         } else {
             self.binding_sig = None;
@@ -692,14 +704,17 @@ where
                 // to verify the signature against
                 let sighash = match tx_data.version() {
                     TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
-                        transaction::sighash_v4::v4_signature_hash(&tx_data, &SignableInput::Transparent {
-                            hash_type: SIGHASH_ALL,
-                            index: i,
-                            value: info.coin.value,
-                            script_pubkey: &info.coin.script_pubkey,
-                            // for p2pkh, always the same as script_pubkey
-                            script_code: &info.coin.script_pubkey,
-                        })
+                        transaction::sighash_v4::v4_signature_hash(
+                            &tx_data,
+                            &SignableInput::Transparent {
+                                hash_type: SIGHASH_ALL,
+                                index: i,
+                                value: info.coin.value,
+                                script_pubkey: &info.coin.script_pubkey,
+                                // for p2pkh, always the same as script_pubkey
+                                script_code: &info.coin.script_pubkey,
+                            },
+                        )
                     },
                     TxVersion::Zip225 => {
                         let txid_parts = tx_data.digest(TxIdDigester);
@@ -828,7 +843,9 @@ where
         // if we have no spends we can just skip
         // applying the signatures and verifying
         if !spends.is_empty() {
-            let sighash = self.signature_hash();
+            let sighash = self
+                .signature_hash()
+                .ok_or(Error::InvalidSpendSig)?;
 
             let p_g = SPENDING_KEY_GENERATOR;
             for (i, ((spend_auth_sig, spendinfo), spend)) in signatures
@@ -842,8 +859,8 @@ where
 
                 let message = {
                     let mut array = [0; 64];
-                    array[.. 32].copy_from_slice(&rk.0.to_bytes());
-                    array[32 ..].copy_from_slice(&sighash[..]);
+                    array[..32].copy_from_slice(&rk.0.to_bytes());
+                    array[32..].copy_from_slice(&sighash[..]);
                     array
                 };
 
@@ -924,8 +941,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             .map_err(|_| Error::Finalization)?;
 
         let mut tx_meta = SaplingMetadata::new();
-        tx_meta.spend_indices = (0 .. self.spends.len()).collect();
-        tx_meta.output_indices = (0 .. self.outputs.len()).collect();
+        tx_meta.spend_indices = (0..self.spends.len()).collect();
+        tx_meta.output_indices = (0..self.outputs.len()).collect();
         Ok((tx, tx_meta))
     }
 
@@ -940,7 +957,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             .map_err(|_| Error::Finalization)?;
 
         let mut v = Vec::new();
-        tx.write(&mut v)?;
+        tx.write(&mut v)
+            .map_err(|_| Error::ReadWriteError)?;
         Ok(v)
     }
 }

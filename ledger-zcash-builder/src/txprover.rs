@@ -32,6 +32,7 @@ use zcash_primitives::{
 use zcash_proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters};
 
 use crate::{
+    errors::ProverError,
     prover::SaplingProvingContext,
     txbuilder::{OutputDescription, SpendDescription},
 };
@@ -164,6 +165,8 @@ pub trait HsmTxProver {
     /// proofs.
     type SaplingProvingContext;
 
+    type Error: std::error::Error;
+
     /// Instantiate a new Sapling proving context.
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext;
 
@@ -181,7 +184,7 @@ pub trait HsmTxProver {
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
         rcv: jubjub::Fr,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()>;
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), Self::Error>;
 
     /// Create the value commitment and proof for a Sapling
     /// [`OutputDescription`], while accumulating its value commitment
@@ -194,7 +197,7 @@ pub trait HsmTxProver {
         rcm: jubjub::Fr,
         value: u64,
         rcv: jubjub::Fr,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint);
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), Self::Error>;
 
     /// Create the `bindingSig` for a Sapling transaction.
     ///
@@ -206,11 +209,12 @@ pub trait HsmTxProver {
         ctx: &mut Self::SaplingProvingContext,
         value_balance: Amount,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ()>;
+    ) -> Result<Signature, Self::Error>;
 }
 
 impl HsmTxProver for LocalTxProver {
     type SaplingProvingContext = SaplingProvingContext;
+    type Error = ProverError;
 
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
         SaplingProvingContext::new()
@@ -227,7 +231,7 @@ impl HsmTxProver for LocalTxProver {
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
         rcv: jubjub::Fr,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ProverError> {
         let (proof, cv, rk) = ctx.spend_proof(
             proof_generation_key,
             diversifier,
@@ -244,7 +248,7 @@ impl HsmTxProver for LocalTxProver {
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
         proof
             .write(&mut zkproof[..])
-            .expect("should be able to serialize a proof");
+            .map_err(|_| ProverError::ReadWriteError)?;
 
         Ok((zkproof, cv, rk))
     }
@@ -257,15 +261,15 @@ impl HsmTxProver for LocalTxProver {
         rcm: jubjub::Fr,
         value: u64,
         rcv: jubjub::Fr,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
-        let (proof, cv) = ctx.output_proof(esk, payment_address, rcm, value, &self.output_params, rcv);
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ProverError> {
+        let (proof, cv) = ctx.output_proof(esk, payment_address, rcm, value, &self.output_params, rcv)?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
         proof
             .write(&mut zkproof[..])
-            .expect("should be able to serialize a proof");
+            .map_err(|_| ProverError::OutputProof)?;
 
-        (zkproof, cv)
+        Ok((zkproof, cv))
     }
 
     fn binding_sig(
@@ -273,7 +277,7 @@ impl HsmTxProver for LocalTxProver {
         ctx: &mut Self::SaplingProvingContext,
         value_balance: Amount,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ()> {
+    ) -> Result<Signature, ProverError> {
         ctx.binding_sig(value_balance, sighash)
     }
 }
@@ -312,6 +316,7 @@ impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
             merkle_path,
             rcv,
         )
+        .map_err(|_| ())
     }
 
     fn output_proof(
@@ -326,7 +331,7 @@ impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
         let mut rng = OsRng;
         let rcv = jubjub::Fr::random(&mut rng);
 
-        HsmTxProver::output_proof(self, ctx, esk, payment_address, rcm, value, rcv)
+        HsmTxProver::output_proof(self, ctx, esk, payment_address, rcm, value, rcv).expect("output proof")
     }
 
     fn binding_sig(
@@ -335,6 +340,6 @@ impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
         value_balance: Amount,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
-        HsmTxProver::binding_sig(self, ctx, value_balance, sighash)
+        HsmTxProver::binding_sig(self, ctx, value_balance, sighash).map_err(|_| ())
     }
 }

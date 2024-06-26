@@ -1,3 +1,4 @@
+use bellman::VerificationError;
 /*******************************************************************************
 *   (c) 2022-2024 Zondax AG
 *
@@ -13,105 +14,76 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-use std::error;
-use std::fmt;
+use thiserror::Error as ThisError;
 
-#[derive(Debug, PartialEq)]
+#[derive(ThisError, Debug, PartialEq)]
 pub enum Error {
+    #[error("Anchor mismatch (anchors for all spends must be equal)")]
     AnchorMismatch,
+    #[error("Failed to create bindingSig")]
     BindingSig,
+    #[error("Change is negative")]
     ChangeIsNegative,
+    #[error("Invalid address")]
     InvalidAddress,
+    #[error("Incorrect format of address")]
     InvalidAddressFormat,
+    #[error("Incorrect hash of address")]
     InvalidAddressHash,
+    #[error("Invalid amount")]
     InvalidAmount,
+    #[error("No change address specified or discoverable")]
     NoChangeAddress,
+    #[error("Failed to create Sapling spend proof")]
     SpendProof,
+    #[error("Missing Sapling spend signature(s)")]
     MissingSpendSig,
+    #[error("Failed to get Sapling spend signature")]
     SpendSig,
+    #[error("Sapling spend signature failed to verify")]
     InvalidSpendSig,
+    #[error("No Sapling spend signatures")]
     NoSpendSig,
+    #[error("Failed to sign transparent inputs")]
     TransparentSig,
+    #[error("Failed to build complete transaction")]
     Finalization,
+    #[error("Not enough shielded outputs for transaction")]
     MinShieldedOutputs,
+    #[error("Builder does not have any keys set")]
     BuilderNoKeys,
+    #[error("Error writing/reading bytes to/from vector")]
+    #[from(std::io::Error)]
     ReadWriteError,
+    #[error("Error: either OVK or hash_seed should be some")]
     InvalidOVKHashSeed,
+    #[error("Error: operation not available after authorization")]
     AlreadyAuthorized,
+    #[error("Error: operation not available without authorization")]
     Unauthorized,
+    #[error("Error: authorization status unknown")]
     UnknownAuthorization,
 }
 
-impl fmt::Display for Error {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter,
-    ) -> fmt::Result {
-        match self {
-            Error::AnchorMismatch => {
-                write!(f, "Anchor mismatch (anchors for all spends must be equal)")
-            },
-            Error::BindingSig => write!(f, "Failed to create bindingSig"),
-            Error::ChangeIsNegative => write!(f, "Change is negative"),
-            Error::InvalidAddress => write!(f, "Invalid address"),
-            Error::InvalidAmount => write!(f, "Invalid amount"),
-            Error::NoChangeAddress => {
-                write!(f, "No change address specified or discoverable")
-            },
-            Error::SpendProof => {
-                write!(f, "Failed to create Sapling spend proof")
-            },
-            Error::MissingSpendSig => {
-                write!(f, "Missing Sapling spend signature(s)")
-            },
-            Error::SpendSig => {
-                write!(f, "Failed to get Sapling spend signature")
-            },
-            Error::InvalidSpendSig => {
-                write!(f, "Sapling spend signature failed to verify")
-            },
-            Error::NoSpendSig => {
-                write!(f, "No Sapling spend signatures")
-            },
-            Error::InvalidAddressFormat => {
-                write!(f, "Incorrect format of address")
-            },
-            Error::InvalidAddressHash => write!(f, "Incorrect hash of address"),
-            Error::TransparentSig => {
-                write!(f, "Failed to sign transparent inputs")
-            },
-            Error::Finalization => {
-                write!(f, "Failed to build complete transaction")
-            },
-            Error::MinShieldedOutputs => {
-                write!(f, "Not enough shielded outputs for transaction")
-            },
-            Error::BuilderNoKeys => {
-                write!(f, "Builder does not have any keys set")
-            },
-            Error::ReadWriteError => {
-                write!(f, "Error writing/reading bytes to/from vector")
-            },
-            Error::InvalidOVKHashSeed => {
-                write!(f, "Error: either OVK or hash_seed should be some")
-            },
-            Error::AlreadyAuthorized => {
-                write!(f, "Error: operation not available after authorization")
-            },
-            Error::Unauthorized => {
-                write!(f, "Error: operation not available without authorization")
-            },
-            Error::UnknownAuthorization => {
-                write!(f, "Error: authorization status unknown")
-            },
-        }
-    }
-}
-
-impl error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
-        Error::ReadWriteError
-    }
+#[derive(ThisError, Debug)]
+pub enum ProverError {
+    #[error("Failed to generate spend proof")]
+    SpendProof,
+    #[error("Failed to generate output proof")]
+    OutputProof,
+    #[error("Failed to generate binding signature")]
+    BindingSig,
+    #[error("Invalid Diversifier")]
+    InvalidDiversifier,
+    #[error("Synthesis error {:?}", .0)]
+    #[from(bellman::SynthesisError)]
+    Synthesis(bellman::SynthesisError),
+    #[error("Verification error {:?}", .0)]
+    #[from(VerificationError)]
+    Verification(VerificationError),
+    #[error("Invalid balance")]
+    InvalidBalance, // Add more specific error variants as needed
+    #[error("Error writing/reading bytes to/from vector")]
+    #[from(std::io::Error)]
+    ReadWriteError,
 }

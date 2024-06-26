@@ -71,7 +71,7 @@ pub struct SaplingOutData {
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount, // Expected: u64 value representing an Amount
     pub memo_type: u8, // Expected: Single byte value
-    #[serde(deserialize_with = "ovk_deserialize")]
+    #[serde(deserialize_with = "ovk_deserialize", default)]
     pub ovk: Option<OutgoingViewingKey>, // Expected: Optional hex-encoded string representing an OutgoingViewingKey
 }
 
@@ -136,16 +136,24 @@ impl HsmTxData {
     pub fn to_hsm_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut data = Vec::new();
         for t_data in self.t_script_data.iter() {
-            t_data.write(&mut data)?;
+            t_data
+                .write(&mut data)
+                .map_err(|_| Error::ReadWriteError)?;
         }
         for spend_old_data in self.s_spend_old_data.iter() {
-            spend_old_data.write(&mut data)?;
+            spend_old_data
+                .write(&mut data)
+                .map_err(|_| Error::ReadWriteError)?;
         }
         for spend_new_data in self.s_spend_new_data.iter() {
-            spend_new_data.write(&mut data)?;
+            spend_new_data
+                .write(&mut data)
+                .map_err(|_| Error::ReadWriteError)?;
         }
         for output_data in self.s_output_data.iter() {
-            output_data.write(&mut data)?;
+            output_data
+                .write(&mut data)
+                .map_err(|_| Error::ReadWriteError)?;
         }
         data.extend_from_slice(&self.tx_hash_data.to_bytes());
         Ok(data)
@@ -201,15 +209,16 @@ pub struct OutputBuilderInfo {
     pub rcv: jubjub::Fr, // Expected: Hex-encoded string representing a Fr
     #[serde(deserialize_with = "rseed_deserialize")]
     pub rseed: Rseed, // Expected: Hex-encoded string representing a Rseed
-    #[serde(deserialize_with = "ovk_deserialize")]
+    #[serde(deserialize_with = "ovk_deserialize", default)]
     pub ovk: Option<OutgoingViewingKey>, // Expected: Optional hex-encoded string representing an OutgoingViewingKey
     #[serde(deserialize_with = "s_address_deserialize")]
     pub address: PaymentAddress, // Expected: Hex-encoded string representing a PaymentAddress
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount, // Expected: u64 value representing an Amount
-    #[serde(deserialize_with = "memo_deserialize")]
+    #[serde(deserialize_with = "memo_deserialize", default)]
     pub memo: Option<Memo>, // Expected: Optional hex-encoded string representing a Memo
-    #[serde(deserialize_with = "hashseed_deserialize")]
+    // #[serde(deserialize_with = "hashseed_deserialize")]
+    #[serde(deserialize_with = "hashseed_deserialize", default)]
     pub hash_seed: Option<HashSeed>, // Expected: Optional hex-encoded string representing a HashSeed
 }
 
