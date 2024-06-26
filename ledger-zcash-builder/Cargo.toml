@@ -51,3 +51,4 @@ wagyu-zcash-parameters = { version = "0.2", optional = true }
 zcash_primitives = { version = "0.7", features = ["transparent-inputs"] }
 zcash_proofs = { version = "0.7", features = ["multicore"], optional = true }
 zcash_note_encryption = { version = "0.1", features = ["pre-zip-212"] }
+thiserror = "1.0"
