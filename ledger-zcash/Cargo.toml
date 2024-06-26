@@ -43,7 +43,9 @@ ledger-transport = "0.11"
 ledger-zondax-generic = "0.11"
 ledger-zcash-builder = { version = "0.11.1" }
 
-zcash_primitives = { version = "0.7", features = ["transparent-inputs"], optional = true }
+zcash_primitives = { version = "0.7", features = [
+    "transparent-inputs",
+], optional = true }
 
 [dev-dependencies]
 futures = "0.3"
