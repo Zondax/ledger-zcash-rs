@@ -53,10 +53,12 @@ impl TryFrom<DataInput> for Builder {
         let mut builder = Self::default();
 
         for ti in input.vec_tin.into_iter() {
-            builder.add_transparent_input(ti.path, ti.pk, ti.prevout, TxOut {
-                value: ti.value,
-                script_pubkey: ti.script,
-            })?;
+            builder.add_transparent_input(
+                ti.path,
+                ti.pk,
+                ti.prevout,
+                TxOut { value: ti.value, script_pubkey: ti.script },
+            )?;
         }
 
         for to in input.vec_tout.into_iter() {
@@ -170,6 +172,7 @@ impl Builder {
         utxo: OutPoint,
         coin: TxOut,
     ) -> Result<&mut Self, BuilderError> {
+        log::info!("add_transparent_input");
         if coin.value.is_negative() {
             return Err(BuilderError::InvalidAmount);
         }
@@ -212,6 +215,7 @@ impl Builder {
         to: &TransparentAddress,
         value: Amount,
     ) -> Result<&mut Self, BuilderError> {
+        log::info!("add_transparent_output");
         if value.is_negative() {
             return Err(BuilderError::InvalidAmount);
         }
@@ -234,6 +238,7 @@ impl Builder {
         note: Note,
         merkle_path: MerklePath<Node>,
     ) -> Result<&mut Self, BuilderError> {
+        log::info!("add_sapling_spend");
         // just need to check against the first one (if it exists)
         // as all will be checked against it to all are equal
         if let Some(spend) = self.sapling_spends.first() {
@@ -244,11 +249,13 @@ impl Builder {
             let this_root = merkle_path.root(cmu);
 
             if this_root != spend_root {
+                log::error!("Anchor mismatch");
                 return Err(BuilderError::AnchorMismatch);
             }
         }
 
         if Amount::from_u64(note.value).is_err() {
+            log::error!("Invalid Amount");
             return Err(BuilderError::InvalidAmount);
         }
 
@@ -270,6 +277,7 @@ impl Builder {
         value: Amount,
         memo: Option<MemoBytes>,
     ) -> Result<&mut Self, BuilderError> {
+        log::info!("add_sapling_output");
         if to.g_d().is_none() {
             return Err(BuilderError::InvalidAddress);
         }
@@ -299,7 +307,7 @@ impl Builder {
         if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
             let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
-            for _ in 0 .. dummies {
+            for _ in 0..dummies {
                 rv.push(DataShieldedOutput {
                     address: random_payment_address(rng),
                     value: Amount::from_u64(0).unwrap(),
@@ -383,6 +391,7 @@ impl Builder {
             .try_fold(Amount::zero(), |acc, x| acc + x);
 
         if let (Some(balance), Some(expense)) = (inputs, outputs) {
+            log::trace!("balance: {:?}, expense: {:?}, fee: {:?}", balance, expense, fee);
             (balance - expense - fee).unwrap_or_else(Amount::zero)
         } else {
             Amount::zero()
@@ -529,7 +538,7 @@ impl Builder {
             ledger_zcash_builder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.into_data_input(fee);
-        log::info!("Building TX with: {:?}", &input);
+        log::trace!("Building TX with: {:?}", &input);
         app.init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;
@@ -597,7 +606,7 @@ impl Builder {
         let mut zsigs = Vec::with_capacity(num_sapling_spends);
 
         // retrieve signatures
-        for i in 0 .. num_transparent_inputs {
+        for i in 0..num_transparent_inputs {
             let sig = app
                 .get_transparent_signature()
                 .await
@@ -605,7 +614,7 @@ impl Builder {
             tsigs.push(sig);
         }
 
-        for i in 0 .. num_sapling_spends {
+        for i in 0..num_sapling_spends {
             let sig = app
                 .get_spend_signature()
                 .await
