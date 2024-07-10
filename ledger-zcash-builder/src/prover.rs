@@ -295,8 +295,8 @@ impl SaplingProvingContext {
 
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-        data_to_be_signed[32..64].copy_from_slice(&sig_hash[..]);
+        data_to_be_signed[0 .. 32].copy_from_slice(&bvk.0.to_bytes());
+        data_to_be_signed[32 .. 64].copy_from_slice(&sig_hash[..]);
 
         // Sign
         Ok(bsk.sign(&data_to_be_signed, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR))

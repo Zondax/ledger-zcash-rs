@@ -110,17 +110,17 @@ impl SaplingOutput {
         } else {
             let seed = self.hashseed.unwrap().0;
             let mut randbytes = [0u8; 32 + OUT_PLAINTEXT_SIZE];
-            for i in 0..3 {
+            for i in 0 .. 3 {
                 let mut sha256 = Sha256::new();
                 sha256.update([i as u8]);
                 sha256.update(seed);
                 let h = sha256.finalize();
-                randbytes[i * 32..(i + 1) * 32].copy_from_slice(&h);
+                randbytes[i * 32 .. (i + 1) * 32].copy_from_slice(&h);
             }
 
-            let ock = Key::from_slice(&randbytes[0..32]);
+            let ock = Key::from_slice(&randbytes[0 .. 32]);
             let out_ciphertext = ChaCha20Poly1305::new(ock)
-                .encrypt(Nonce::from_slice(&[0u8; 12]), &randbytes[32..])
+                .encrypt(Nonce::from_slice(&[0u8; 12]), &randbytes[32 ..])
                 .unwrap();
 
             assert_eq!(out_ciphertext.len(), OUT_CIPHERTEXT_SIZE);
@@ -366,8 +366,8 @@ pub fn transparent_script_data_fromtx<A: transparent::Authorization>(
     let mut data = Vec::new();
     for (i, (info, vin)) in inputs.iter().zip(vins).enumerate() {
         let mut prevout = [0u8; 36];
-        prevout[0..32].copy_from_slice(vin.prevout.hash().as_ref());
-        prevout[32..36].copy_from_slice(&vin.prevout.n().to_le_bytes());
+        prevout[0 .. 32].copy_from_slice(vin.prevout.hash().as_ref());
+        prevout[32 .. 36].copy_from_slice(&vin.prevout.n().to_le_bytes());
 
         let mut script_pubkey = [0u8; 26];
         info.coin

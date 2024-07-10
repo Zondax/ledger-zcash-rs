@@ -53,12 +53,10 @@ impl TryFrom<DataInput> for Builder {
         let mut builder = Self::default();
 
         for ti in input.vec_tin.into_iter() {
-            builder.add_transparent_input(
-                ti.path,
-                ti.pk,
-                ti.prevout,
-                TxOut { value: ti.value, script_pubkey: ti.script },
-            )?;
+            builder.add_transparent_input(ti.path, ti.pk, ti.prevout, TxOut {
+                value: ti.value,
+                script_pubkey: ti.script,
+            })?;
         }
 
         for to in input.vec_tout.into_iter() {
@@ -307,7 +305,7 @@ impl Builder {
         if !self.sapling_spends.is_empty() || self.sapling_outputs.len() == 1 {
             let dummies = 2usize.saturating_sub(self.sapling_outputs.len());
 
-            for _ in 0..dummies {
+            for _ in 0 .. dummies {
                 rv.push(DataShieldedOutput {
                     address: random_payment_address(rng),
                     value: Amount::from_u64(0).unwrap(),
@@ -606,7 +604,7 @@ impl Builder {
         let mut zsigs = Vec::with_capacity(num_sapling_spends);
 
         // retrieve signatures
-        for i in 0..num_transparent_inputs {
+        for i in 0 .. num_transparent_inputs {
             let sig = app
                 .get_transparent_signature()
                 .await
@@ -614,7 +612,7 @@ impl Builder {
             tsigs.push(sig);
         }
 
-        for i in 0..num_sapling_spends {
+        for i in 0 .. num_sapling_spends {
             let sig = app
                 .get_spend_signature()
                 .await
