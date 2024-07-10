@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   (c) 2018-2022 Zondax GmbH
+*   (c) 2018-2022 Zondax AG
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -16,11 +16,10 @@
 
 use std::marker::PhantomData;
 
-use crate::zcash::primitives::transaction::{
+use zcash_primitives::transaction::{
     self,
     components::{
-        sapling::Authorization as SAuthorization, transparent::Authorization as TAuthorization,
-        GROTH_PROOF_SIZE,
+        sapling::Authorization as SAuthorization, transparent::Authorization as TAuthorization, GROTH_PROOF_SIZE,
     },
     Authorization, Authorized,
 };
@@ -43,9 +42,9 @@ impl<T: TAuthorization, S: SAuthorization> Authorization for MixedAuthorization<
 }
 
 pub mod sapling {
-    use crate::{
-        txbuilder::SpendDescriptionInfo, zcash::primitives::transaction::components::sapling,
-    };
+    use zcash_primitives::transaction::components::sapling;
+
+    use crate::txbuilder::SpendDescriptionInfo;
 
     /// Unauthorized Sapling bundle - Similar to v0.5
     ///
@@ -53,7 +52,8 @@ pub mod sapling {
     /// where the associated AuthSig is not a private struct and has
     /// some necessary fields added.
     ///
-    /// This allows the [`sapling::SpendDescription`] to actually be instantiated
+    /// This allows the [`sapling::SpendDescription`] to actually be
+    /// instantiated
     #[derive(Debug, Default, Clone, Copy)]
     pub struct Unauthorized {}
 
@@ -65,16 +65,15 @@ pub mod sapling {
 }
 
 pub mod transparent {
-    use crate::{
-        errors::Error,
-        txbuilder::TransparentInputInfo,
-        zcash::primitives::transaction::{self, components::transparent, TransactionData},
-    };
+    use zcash_primitives::transaction::{self, components::transparent, TransactionData};
+
+    use crate::{errors::Error, txbuilder::TransparentInputInfo};
 
     /// Unauthorized Transparent bundle - Similar to v0.5
     ///
     /// This is a slight variation on [`transparent::builder::Unauthorized`]
-    /// where the authorization is not a private struct, thus can be constructed manually
+    /// where the authorization is not a private struct, thus can be constructed
+    /// manually
     #[derive(Debug, Clone)]
     pub struct Unauthorized {
         pub secp: secp256k1::Secp256k1<secp256k1::VerifyOnly>,
@@ -83,24 +82,23 @@ pub mod transparent {
 
     impl Default for Unauthorized {
         fn default() -> Self {
-            Self {
-                secp: secp256k1::Secp256k1::gen_new(),
-                inputs: vec![],
-            }
+            Self { secp: secp256k1::Secp256k1::gen_new(), inputs: vec![] }
         }
     }
 
     impl transparent::Authorization for Unauthorized {
-        type ScriptSig =
-            <transparent::builder::Unauthorized as transparent::Authorization>::ScriptSig;
+        type ScriptSig = <transparent::builder::Unauthorized as transparent::Authorization>::ScriptSig;
     }
 
     impl transaction::sighash::TransparentAuthorizingContext for Unauthorized {
         fn input_amounts(&self) -> Vec<transaction::components::Amount> {
-            self.inputs.iter().map(|input| input.coin.value).collect()
+            self.inputs
+                .iter()
+                .map(|input| input.coin.value)
+                .collect()
         }
 
-        fn input_scriptpubkeys(&self) -> Vec<crate::zcash::primitives::legacy::Script> {
+        fn input_scriptpubkeys(&self) -> Vec<zcash_primitives::legacy::Script> {
             self.inputs
                 .iter()
                 .map(|input| input.coin.script_pubkey.clone())

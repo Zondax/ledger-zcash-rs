@@ -1,9 +1,9 @@
 [package]
 name = "ledger-zcash"
 description = "Library to integrate with the Ledger Zcash app"
-version = "0.6.0"
+version = "0.11.2"
 license = "Apache-2.0"
-authors = ["Zondax GmbH <hello@zondax.ch>"]
+authors = ["Zondax AG <hello@zondax.ch>"]
 homepage = "https://github.com/Zondax/ledger-zcash-rs"
 repository = "https://github.com/Zondax/ledger-zcash-rs"
 readme = "README.md"
@@ -16,45 +16,42 @@ autobenches = false
 name = "ledger_zcash"
 
 [features]
-default = ["normal-zcash"]
-normal-zcash = ["zcash_primitives", "zcash-hsmbuilder/normal-zcash"]
-zecwallet-compat = ["zecw_primitives", "zcash-hsmbuilder/zecwallet-compat"]
+default = ["zcash_primitives"]
 
 [dependencies]
-arrayvec = "0.7.2"
-byteorder = "1.4.3"
-cfg-if = "1.0.0"
+arrayvec = "0.7"
+byteorder = "1.5"
+cfg-if = "1"
+lazy_static = "1"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.38", features = ["sync"] }
+educe = "0.5"
+log = "0.4"
+sha2 = "0.10.8"
+thiserror = "1.0"
+
 ff = "0.12"
 group = "0.12"
-lazy_static = "1"
-hex = "0.4.3"
 jubjub = { version = "0.9", default-features = false }
-log = "0.4.17"
 rand_core = "0.6"
 ripemd = "0.1"
-secp256k1 = { version = "0.21", default-features = false }
-sha2 = "0.9"
-thiserror = "1.0.31"
+secp256k1 = { version = "0.29", default-features = false }
+
 zx-bip44 = "0.1.0"
+ledger-transport = "0.11"
+ledger-zondax-generic = "0.11"
+ledger-zcash-builder = { version = "0.11.1" }
 
-serde = { version = "1.0", features = ["derive"] }
-
-ledger-transport = "0.9.0"
-ledger-zondax-generic = "0.9.1"
-
-#zcash
-zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
-zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
-
-#zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
-tokio = { version = "1.6", features = ["sync"] }
-educe = "0.4.19"
+zcash_primitives = { version = "0.7", features = [
+    "transparent-inputs",
+], optional = true }
 
 [dev-dependencies]
-futures = "0.3.21"
-matches = "0.1.9"
-serial_test = "0.7.0"
-env_logger = { version = "0.9.0", default-features = false }
+futures = "0.3"
+matches = "0.1"
+serial_test = "3.1"
+env_logger = { version = "0.11", default-features = false }
 tokio = { version = "1", features = ["full"] }
-ledger-transport-hid = "0.9.0"
+
+ledger-transport-hid = "0.11"
