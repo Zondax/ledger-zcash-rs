@@ -24,10 +24,11 @@ use std::{convert::TryFrom, path::Path, str};
 use byteorder::{LittleEndian, WriteBytesExt};
 use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
+use ledger_zcash_builder::data::{SaplingInData, SaplingOutData};
 use ledger_zcash_builder::{
     data::{
-        HashSeed, HsmTxData, InitData, OutputBuilderInfo, SaplingInData, SaplingOutData, SpendBuilderInfo, TinData,
-        ToutData, TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
+        HashSeed, HsmTxData, InitData, OutputBuilderInfo, SpendBuilderInfo, TinData, ToutData,
+        TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
     },
     txbuilder::SaplingMetadata,
 };
