@@ -396,16 +396,20 @@ impl Builder {
         if value != Amount::zero() {
             log::debug!("adding output with change");
 
-            //avoid having a single output (from the change address) when there are no spends
-            let change_to_sapling =
-                if !self.sapling_spends.is_empty() && !self.sapling_outputs.is_empty() {
-                    self.change_address
-                        .clone()
-                        .map(|(ovk, addr)| (Some(ovk), addr))
-                        .or_else(|| self.sapling_spends.get(0).map(|s| (None, s.address())))
-                } else {
-                    None
-                };
+            // avoid having a single output (from the change address) when there are no
+            // spends
+            let change_to_sapling = if !self.sapling_spends.is_empty() {
+                self.change_address
+                    .clone()
+                    .map(|(ovk, addr)| (Some(ovk), addr))
+                    .or_else(|| {
+                        self.sapling_spends
+                            .first()
+                            .map(|s| (None, s.address()))
+                    })
+            } else {
+                None
+            };
 
             if let Some((ovk, addr)) = change_to_sapling {
                 fee = Self::calculate_zip0317_fee(
