@@ -423,7 +423,7 @@ impl Builder {
 
             // avoid having a single output (from the change address) when there are no
             // spends
-            let change_to_sapling = if !self.sapling_spends.is_empty() && !self.sapling_outputs.is_empty() {
+            let change_to_sapling = if !self.sapling_spends.is_empty() {
                 self.change_address
                     .clone()
                     .map(|(ovk, addr)| (Some(ovk), addr))
