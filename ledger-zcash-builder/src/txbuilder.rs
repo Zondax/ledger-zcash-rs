@@ -209,7 +209,7 @@ where
         };
 
         let mut array = [0; 32];
-        array.copy_from_slice(&sighash.as_ref()[..32]);
+        array.copy_from_slice(&sighash.as_ref()[.. 32]);
         Some(array)
     }
 }
@@ -705,17 +705,14 @@ where
                 // to verify the signature against
                 let sighash = match tx_data.version() {
                     TxVersion::Sprout(_) | TxVersion::Overwinter | TxVersion::Sapling => {
-                        transaction::sighash_v4::v4_signature_hash(
-                            &tx_data,
-                            &SignableInput::Transparent {
-                                hash_type: SIGHASH_ALL,
-                                index: i,
-                                value: info.coin.value,
-                                script_pubkey: &info.coin.script_pubkey,
-                                // for p2pkh, always the same as script_pubkey
-                                script_code: &info.coin.script_pubkey,
-                            },
-                        )
+                        transaction::sighash_v4::v4_signature_hash(&tx_data, &SignableInput::Transparent {
+                            hash_type: SIGHASH_ALL,
+                            index: i,
+                            value: info.coin.value,
+                            script_pubkey: &info.coin.script_pubkey,
+                            // for p2pkh, always the same as script_pubkey
+                            script_code: &info.coin.script_pubkey,
+                        })
                     },
                     TxVersion::Zip225 => {
                         let txid_parts = tx_data.digest(TxIdDigester);
@@ -860,8 +857,8 @@ where
 
                 let message = {
                     let mut array = [0; 64];
-                    array[..32].copy_from_slice(&rk.0.to_bytes());
-                    array[32..].copy_from_slice(&sighash[..]);
+                    array[.. 32].copy_from_slice(&rk.0.to_bytes());
+                    array[32 ..].copy_from_slice(&sighash[..]);
                     array
                 };
 
@@ -942,8 +939,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
             .map_err(|_| Error::Finalization)?;
 
         let mut tx_meta = SaplingMetadata::new();
-        tx_meta.spend_indices = (0..self.spends.len()).collect();
-        tx_meta.output_indices = (0..self.outputs.len()).collect();
+        tx_meta.spend_indices = (0 .. self.spends.len()).collect();
+        tx_meta.output_indices = (0 .. self.outputs.len()).collect();
         Ok((tx, tx_meta))
     }
 
