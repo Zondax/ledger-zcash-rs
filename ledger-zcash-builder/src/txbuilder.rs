@@ -447,8 +447,9 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng>
         log::debug!("Output value: {:?}", output_value);
         log::debug!("Fee: {:?}", self.fee);
 
-        let change = sapling_value + input_value + output_value - self.fee;
+        let change = sapling_value + input_value - output_value - self.fee;
         let change = change.unwrap();
+        log::debug!("Change: {:?}", change);
 
         if change.is_negative() {
             log::error!("Change is negative {:?}", change);
