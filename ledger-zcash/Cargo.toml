@@ -43,9 +43,8 @@ ledger-transport = "0.11"
 ledger-zondax-generic = "0.11"
 ledger-zcash-builder = { version = "0.11.1" }
 
-zcash_primitives = { version = "0.7", features = [
-    "transparent-inputs",
-], optional = true }
+
+zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 
 [dev-dependencies]
 futures = "0.3"
