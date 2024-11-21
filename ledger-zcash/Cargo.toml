@@ -47,7 +47,7 @@ zcash-hsmbuilder = { path = "../zcash-hsmbuilder", default-features = false }
 zcash_primitives = { version = "0.6", features = ["transparent-inputs"], optional = true }
 
 #zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+zecw_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
 tokio = { version = "1.6", features = ["sync"] }
 educe = "0.4.19"
 

@@ -51,9 +51,9 @@ zcash_proofs = { version = "0.6", features = ["multicore"], optional = true }
 zcash_note_encryption = { version = "0.1", features = ["pre-zip-212"] }
 
 #zecwallet-compat
-zecw_primitives = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
-zecw_proofs = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["multicore"], optional = true, package = "zcash_proofs" }
-zecw_note_encryption = { git = "https://github.com/adityapk00/librustzcash", rev = "7183acd2fe12ebf201cae5b871166e356273c481", features = ["pre-zip-212"], optional = true, package = "zcash_note_encryption" }
+zecw_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+zecw_proofs = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["multicore"], optional = true, package = "zcash_proofs" }
+zecw_note_encryption = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["pre-zip-212"], optional = true, package = "zcash_note_encryption" }
 tokio = { version = "1.6", features = ["sync"] }
 educe = "0.4.19"
 log = "0.4.17"
