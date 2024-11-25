@@ -1,0 +1,23 @@
+[package]
+name = "ledger-zcash-legacy-helpers"
+description = "Legacy helpers for zcash. This will be remove soon."
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["Zondax AG <hello@zondax.ch>"]
+homepage = "https://github.com/Zondax/ledger-zcash-rs"
+repository = "https://github.com/Zondax/ledger-zcash-rs"
+readme = "README.md"
+categories = ["authentication", "cryptography"]
+keywords = ["ledger", "nano", "apdu", "zcash"]
+edition = "2021"
+autobenches = false
+
+[lib]
+name = "ledger_zcash_legacy_helpers"
+
+[features]
+default = ["zcash_primitives"]
+
+[dependencies]
+zcash_primitives = { version = "0.8", features = ["transparent-inputs"], optional = true }
+

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zcash_primitives = { version = "0.7", features = ["transparent-inputs"] }
+zcash_primitives = { version = "0.8", features = ["transparent-inputs"] }
 
 ledger-zcash-builder = { path = "../ledger-zcash-builder", version = "=0.11.2" }
 ledger-zcash = { path = "../ledger-zcash", version = "=0.11.2" }

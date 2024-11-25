@@ -41,11 +41,9 @@ secp256k1 = { version = "0.29", default-features = false }
 zx-bip44 = "0.1.0"
 ledger-transport = "0.11"
 ledger-zondax-generic = "0.11"
-ledger-zcash-builder = { version = "0.11.1" }
-
-zcash_primitives = { version = "0.7", features = [
-    "transparent-inputs",
-], optional = true }
+ledger-zcash-builder = { path = "../ledger-zcash-builder", version = "=0.11.2" }
+ledger-zcash-legacy-helpers = { path = "../ledger-zcash-legacy-helpers" }
+zcash_primitives = { version = "0.8", features = ["transparent-inputs"], optional = true }
 
 [dev-dependencies]
 futures = "0.3"
