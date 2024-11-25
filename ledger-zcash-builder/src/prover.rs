@@ -26,18 +26,16 @@ use group::GroupEncoding;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-use zcash_primitives::{
-    constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, VALUE_COMMITMENT_VALUE_GENERATOR},
-    merkle_tree::MerklePath,
-    sapling::{
-        prover::TxProver,
-        redjubjub::{PrivateKey, PublicKey, Signature},
-        Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment,
-    },
-    transaction::components::Amount,
+use redjubjub::{SigType, Signature};
+use zcash_primitives::transaction::components::Amount;
+// use zcash_proofs::circuit::sapling::{Output, Spend};
+use sapling_crypto::{
+    circuit::{Output, Spend, ValueCommitmentOpening}, constants::{
+        SPENDING_KEY_GENERATOR,
+        VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+        VALUE_COMMITMENT_VALUE_GENERATOR,
+    }, prover::{OutputProver, SpendProver}, value::{NoteValue, ValueCommitment}, MerklePath, Note, PaymentAddress, Rseed
 };
-use zcash_proofs::circuit::sapling::{Output, Spend};
-
 use crate::errors::ProverError;
 
 fn compute_value_balance_hsm(value: Amount) -> Option<jubjub::ExtendedPoint> {
@@ -84,13 +82,13 @@ impl SaplingProvingContext {
     /// inside the context for later use.
     pub fn spend_proof(
         &mut self,
-        proof_generation_key: ProofGenerationKey,
-        diversifier: Diversifier,
+        proof_generation_key: sapling_crypto::ProofGenerationKey,
+        diversifier: sapling_crypto::Diversifier,
         rseed: Rseed,
         ar: jubjub::Fr,
         value: u64,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
+        merkle_path: MerklePath,
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
         rcv: jubjub::Fr,
@@ -116,7 +114,14 @@ impl SaplingProvingContext {
         }
 
         // Construct the value commitment
-        let value_commitment = ValueCommitment { value, randomness: rcv };
+        // ValueCommitment { value, randomness: rcv };
+        let rcv_bytes = rcv.to_bytes();
+        
+
+        let value_commitment = ValueCommitmentOpening {
+            value: NoteValue::from_raw(value),
+            randomness: jubjub::Scalar::from_bytes(&rcv_bytes).unwrap()
+        };
 
         // Construct the viewing key
         let viewing_key = proof_generation_key.to_viewing_key();
@@ -130,20 +135,13 @@ impl SaplingProvingContext {
         let rk = PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
 
         // Let's compute the nullifier while we have the position
-        let note = Note {
-            value,
-            g_d: diversifier
-                .g_d()
-                .expect("was a valid diversifier before"),
-            pk_d: *payment_address.pk_d(),
-            rseed,
-        };
+        let note = Note::from_parts(payment_address, value, rseed);
 
-        let nullifier = note.nf(&viewing_key.nk, merkle_path.position);
+        let nullifier = note.nf(&viewing_key.nk, merkle_path.position());
 
         // We now have the full witness for our circuit
         let instance = Spend {
-            value_commitment: Some(value_commitment.clone()),
+            value_commitment_opening: Some(value_commitment.clone()),
             proof_generation_key: Some(proof_generation_key),
             payment_address: Some(payment_address),
             commitment_randomness: Some(note.rcm()),
@@ -237,11 +235,14 @@ impl SaplingProvingContext {
         }
 
         // Construct the value commitment for the proof instance
-        let value_commitment = ValueCommitment { value, randomness: rcv };
-
+        let value_commitment = ValueCommitment::derive(value, rcv);
+        let value_commitment_opening = ValueCommitmentOpening {
+            value: NoteValue::from_raw(value),
+            randomness: rcv
+        };
         // We now have a full witness for the output proof.
         let instance = Output {
-            value_commitment: Some(value_commitment.clone()),
+            value_commitment_opening: Some(value_commitment_opening),
             payment_address: Some(payment_address),
             commitment_randomness: Some(rcm),
             esk: Some(esk),
@@ -263,11 +264,11 @@ impl SaplingProvingContext {
     /// Create the bindingSig for a Sapling transaction. All calls to
     /// spend_proof() and output_proof() must be completed before calling
     /// this function.
-    pub fn binding_sig(
+    pub fn binding_sig<T: SigType> (
         &self,
         value_balance: Amount,
         sig_hash: &[u8; 32],
-    ) -> Result<Signature, ProverError> {
+    ) -> Result<Signature<T>, ProverError> {
         // Initialize secure RNG
         let mut rng = OsRng;
 

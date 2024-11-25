@@ -48,7 +48,10 @@ secp256k1 = { version = "0.29" }
 #zcash
 wagyu-zcash-parameters = { version = "0.2", optional = true }
 ledger-zcash-legacy-helpers = { path = "../ledger-zcash-legacy-helpers" }
-zcash_primitives = { version = "0.8", features = ["transparent-inputs"] }
-zcash_proofs = { version = "0.8", features = ["multicore"], optional = true }
+zcash_primitives = { version = "0.20", features = ["transparent-inputs"] }
+zcash_proofs = { version = "0.20", features = ["multicore"], optional = true }
 zcash_note_encryption = { version = "0.4", features = ["pre-zip-212"] }
 thiserror = "1.0"
+sapling-crypto = "0.3"
+incrementalmerkletree = "0.7"
+redjubjub = "0.7"

@@ -17,6 +17,7 @@ use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::*;
 use ff::PrimeField;
 use group::GroupEncoding;
+use sapling_crypto::bundle::GrothProofBytes;
 use zcash_primitives::{
     consensus,
     transaction::{
@@ -117,18 +118,18 @@ fn joinsplits_hash_v4(
         .hash(&data)
 }
 
-fn shielded_spends_hash_v4<A>(shielded_spends: &[sapling::SpendDescription<A>]) -> Blake2bHash
+fn shielded_spends_hash_v4<A>(shielded_spends: &[sapling_crypto::bundle::SpendDescription<A>]) -> Blake2bHash
 where
-    A: sapling::Authorization,
-    A::Proof: AsRef<[u8]>,
+    A: sapling_crypto::bundle::Authorization,
+    A::SpendProof: AsRef<[u8]>,
 {
     let mut data = Vec::with_capacity(shielded_spends.len() * 384);
     for s_spend in shielded_spends {
-        data.extend_from_slice(&s_spend.cv.to_bytes());
-        data.extend_from_slice(s_spend.anchor.to_repr().as_ref());
-        data.extend_from_slice(s_spend.nullifier.as_ref());
-        s_spend.rk.write(&mut data).unwrap();
-        data.extend_from_slice(s_spend.zkproof.as_ref());
+        data.extend_from_slice(&s_spend.cv().to_bytes());
+        data.extend_from_slice(s_spend.anchor().to_repr().as_ref());
+        data.extend_from_slice(s_spend.nullifier().as_ref());
+        s_spend.rk().write(&mut data).unwrap();
+        data.extend_from_slice(s_spend.zkproof().as_ref());
     }
 
     Blake2bParams::new()
@@ -137,7 +138,7 @@ where
         .hash(&data)
 }
 
-fn shielded_outputs_hash_v4(shielded_outputs: &[sapling::OutputDescription<sapling::GrothProofBytes>]) -> Blake2bHash {
+fn shielded_outputs_hash_v4(shielded_outputs: &[sapling_crypto::bundle::OutputDescription<GrothProofBytes>]) -> Blake2bHash {
     let mut data = Vec::with_capacity(shielded_outputs.len() * 948);
     for s_out in shielded_outputs {
         s_out.write_v4(&mut data).unwrap();
@@ -209,21 +210,21 @@ where
     update_data!(
         txdata_sighash.shieldedspendhash,
         !tx.sapling_bundle()
-            .map_or(true, |b| b.shielded_spends.is_empty()),
+            .map_or(true, |b| b.shielded_spends().is_empty()),
         shielded_spends_hash_v4(
             &tx.sapling_bundle()
                 .unwrap()
-                .shielded_spends
+                .shielded_spends()
         )
     );
     update_data!(
         txdata_sighash.shieldedoutputhash,
         !tx.sapling_bundle()
-            .map_or(true, |b| b.shielded_outputs.is_empty()),
+            .map_or(true, |b| b.shielded_outputs().is_empty()),
         shielded_outputs_hash_v4(
-            &tx.sapling_bundle()
+            tx.sapling_bundle()
                 .unwrap()
-                .shielded_outputs
+                .shielded_outputs()
         )
     );
 
@@ -234,7 +235,7 @@ where
 
     let sapling_value_balance = tx
         .sapling_bundle()
-        .map_or(transaction::components::Amount::zero(), |b| b.value_balance);
+        .map_or(transaction::components::Amount::zero(), |b| b.value_balance());
     txdata_sighash
         .value_balance
         .copy_from_slice(&sapling_value_balance.to_i64_le_bytes());

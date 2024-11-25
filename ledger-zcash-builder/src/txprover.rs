@@ -17,18 +17,15 @@
 
 use std::path::Path;
 
-use bellman::groth16::{Parameters, PreparedVerifyingKey};
+use bellman::groth16::{Parameters, PreparedVerifyingKey, Proof};
 use bls12_381::Bls12;
 use ff::Field;
 use rand_core::OsRng;
-use zcash_primitives::{
-    merkle_tree::MerklePath,
-    sapling::{
-        redjubjub::{PublicKey, Signature},
-        Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
-    },
-    transaction::components::{Amount, GROTH_PROOF_SIZE},
+use redjubjub::{Binding, Signature, SpendAuth, VerificationKey};
+use sapling_crypto::{
+    bundle::GrothProofBytes, circuit::{Output, OutputParameters, Spend, SpendParameters}, prover::{OutputProver, SpendProver}, value::{NoteValue, ValueCommitTrapdoor}, Diversifier, MerklePath, PaymentAddress, ProofGenerationKey, Rseed
 };
+use zcash_primitives::transaction::components::{Amount, GROTH_PROOF_SIZE};
 use zcash_proofs::{default_params_folder, load_parameters, parse_parameters, ZcashParameters};
 
 use crate::{
@@ -182,9 +179,9 @@ pub trait HsmTxProver {
         ar: jubjub::Fr,
         value: u64,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
+        merkle_path: MerklePath,
         rcv: jubjub::Fr,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), Self::Error>;
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, redjubjub::VerificationKey<SpendAuth>), Self::Error>;
 
     /// Create the value commitment and proof for a Sapling
     /// [`OutputDescription`], while accumulating its value commitment
@@ -197,7 +194,7 @@ pub trait HsmTxProver {
         rcm: jubjub::Fr,
         value: u64,
         rcv: jubjub::Fr,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), Self::Error>;
+    ) -> Result<(GrothProofBytes, jubjub::ExtendedPoint), Self::Error>;
 
     /// Create the `bindingSig` for a Sapling transaction.
     ///
@@ -209,7 +206,7 @@ pub trait HsmTxProver {
         ctx: &mut Self::SaplingProvingContext,
         value_balance: Amount,
         sighash: &[u8; 32],
-    ) -> Result<Signature, Self::Error>;
+    ) -> Result<Signature<Binding>, Self::Error>;
 }
 
 impl HsmTxProver for LocalTxProver {
@@ -229,9 +226,9 @@ impl HsmTxProver for LocalTxProver {
         ar: jubjub::Fr,
         value: u64,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
+        merkle_path: MerklePath,
         rcv: jubjub::Fr,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ProverError> {
+    ) -> Result<(GrothProofBytes, jubjub::ExtendedPoint, VerificationKey<SpendAuth>), ProverError> {
         let (proof, cv, rk) = ctx.spend_proof(
             proof_generation_key,
             diversifier,
@@ -277,69 +274,142 @@ impl HsmTxProver for LocalTxProver {
         ctx: &mut Self::SaplingProvingContext,
         value_balance: Amount,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ProverError> {
+    ) -> Result<Signature<Binding>, ProverError> {
         ctx.binding_sig(value_balance, sighash)
     }
 }
 
-impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
-    type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
 
-    fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
-        HsmTxProver::new_sapling_proving_context(self)
-    }
+impl SpendProver for LocalTxProver {
+    type Proof = Proof<Bls12>;
 
-    fn spend_proof(
-        &self,
-        ctx: &mut Self::SaplingProvingContext,
+    fn prepare_circuit(
         proof_generation_key: ProofGenerationKey,
         diversifier: Diversifier,
         rseed: Rseed,
-        ar: jubjub::Fr,
-        value: u64,
+        value: NoteValue,
+        alpha: jubjub::Fr,
+        rcv: ValueCommitTrapdoor,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
-        // default, same as zcash's prover
-        let mut rng = OsRng;
-        let rcv = jubjub::Fr::random(&mut rng);
-
-        HsmTxProver::spend_proof(
-            self,
-            ctx,
+        merkle_path: MerklePath,
+    ) -> Option<Spend> {
+        SpendParameters::prepare_circuit(
             proof_generation_key,
             diversifier,
             rseed,
-            ar,
             value,
+            alpha,
+            rcv,
             anchor,
             merkle_path,
-            rcv,
         )
-        .map_err(|_| ())
     }
 
-    fn output_proof(
+    fn create_proof<R: rand_core::RngCore>(
         &self,
-        ctx: &mut Self::SaplingProvingContext,
+        circuit: Spend,
+        rng: &mut R,
+    ) -> Self::Proof {
+        self.spend_params.create_proof(circuit, rng)
+    }
+
+    fn encode_proof(proof: Self::Proof) -> GrothProofBytes {
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        proof
+            .write(&mut zkproof[..])
+            .expect("should be able to serialize a proof");
+        zkproof
+    }
+}
+
+impl OutputProver for LocalTxProver {
+    type Proof = Proof<Bls12>;
+
+    fn prepare_circuit(
         esk: jubjub::Fr,
         payment_address: PaymentAddress,
         rcm: jubjub::Fr,
-        value: u64,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
-        // default, same as zcash's prover
-        let mut rng = OsRng;
-        let rcv = jubjub::Fr::random(&mut rng);
-
-        HsmTxProver::output_proof(self, ctx, esk, payment_address, rcm, value, rcv).expect("output proof")
+        value: NoteValue,
+        rcv: ValueCommitTrapdoor,
+    ) -> Output {
+        OutputParameters::prepare_circuit(esk, payment_address, rcm, value, rcv)
     }
 
-    fn binding_sig(
+    fn create_proof<R: rand_core::RngCore>(
         &self,
-        ctx: &mut Self::SaplingProvingContext,
-        value_balance: Amount,
-        sighash: &[u8; 32],
-    ) -> Result<Signature, ()> {
-        HsmTxProver::binding_sig(self, ctx, value_balance, sighash).map_err(|_| ())
+        circuit: Output,
+        rng: &mut R,
+    ) -> Self::Proof {
+        self.output_params.create_proof(circuit, rng)
+    }
+
+    fn encode_proof(proof: Self::Proof) -> GrothProofBytes {
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        proof
+            .write(&mut zkproof[..])
+            .expect("should be able to serialize a proof");
+        zkproof
     }
 }
+
+// impl zcash_primitives::sapling::prover::TxProver for LocalTxProver {
+//     type SaplingProvingContext = <Self as HsmTxProver>::SaplingProvingContext;
+
+//     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext {
+//         HsmTxProver::new_sapling_proving_context(self)
+//     }
+
+//     fn spend_proof(
+//         &self,
+//         ctx: &mut Self::SaplingProvingContext,
+//         proof_generation_key: ProofGenerationKey,
+//         diversifier: Diversifier,
+//         rseed: Rseed,
+//         ar: jubjub::Fr,
+//         value: u64,
+//         anchor: bls12_381::Scalar,
+//         merkle_path: MerklePath,
+//     ) -> Result<(GrothProofBytes, jubjub::ExtendedPoint, VerificationKey<SpendAuth>), ()> {
+//         // default, same as zcash's prover
+//         let mut rng = OsRng;
+//         let rcv = jubjub::Fr::random(&mut rng);
+
+//         HsmTxProver::spend_proof(
+//             self,
+//             ctx,
+//             proof_generation_key,
+//             diversifier,
+//             rseed,
+//             ar,
+//             value,
+//             anchor,
+//             merkle_path,
+//             rcv,
+//         )
+//         .map_err(|_| ())
+//     }
+
+//     fn output_proof(
+//         &self,
+//         ctx: &mut Self::SaplingProvingContext,
+//         esk: jubjub::Fr,
+//         payment_address: PaymentAddress,
+//         rcm: jubjub::Fr,
+//         value: u64,
+//     ) -> (GrothProofBytes, jubjub::ExtendedPoint) {
+//         // default, same as zcash's prover
+//         let mut rng = OsRng;
+//         let rcv = jubjub::Fr::random(&mut rng);
+
+//         HsmTxProver::output_proof(self, ctx, esk, payment_address, rcm, value, rcv).expect("output proof")
+//     }
+
+//     fn binding_sig(
+//         &self,
+//         ctx: &mut Self::SaplingProvingContext,
+//         value_balance: Amount,
+//         sighash: &[u8; 32],
+//     ) -> Result<Signature, ()> {
+//         HsmTxProver::binding_sig(self, ctx, value_balance, sighash).map_err(|_| ())
+//     }
+// }

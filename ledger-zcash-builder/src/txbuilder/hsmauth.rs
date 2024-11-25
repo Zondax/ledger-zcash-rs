@@ -15,11 +15,11 @@
 ********************************************************************************/
 
 use std::marker::PhantomData;
-
+use sapling_crypto::bundle::Authorization as SAuthorization;
 use zcash_primitives::transaction::{
     self,
     components::{
-        sapling::Authorization as SAuthorization, transparent::Authorization as TAuthorization, GROTH_PROOF_SIZE,
+        transparent::Authorization as TAuthorization, GROTH_PROOF_SIZE,
     },
     Authorization, Authorized,
 };
@@ -42,6 +42,7 @@ impl<T: TAuthorization, S: SAuthorization> Authorization for MixedAuthorization<
 }
 
 pub mod sapling {
+    use sapling_crypto::bundle::Authorization;
     use zcash_primitives::transaction::components::sapling;
 
     use crate::txbuilder::SpendDescriptionInfo;
@@ -57,15 +58,15 @@ pub mod sapling {
     #[derive(Debug, Default, Clone, Copy)]
     pub struct Unauthorized {}
 
-    impl sapling::Authorization for Unauthorized {
-        type Proof = <sapling::builder::Unauthorized as sapling::Authorization>::Proof;
+    impl sapling_crypto::bundle::Authorization for Unauthorized {
+        type SpendProof = <sapling_crypto::builder::InProgress<> as Authorization>::SpendProof;
 
         type AuthSig = SpendDescriptionInfo;
     }
 }
 
 pub mod transparent {
-    use zcash_primitives::transaction::{self, components::transparent, TransactionData};
+    use zcash_primitives::transaction::{self, components::{amount::NonNegativeAmount, transparent}, TransactionData};
 
     use crate::{errors::Error, txbuilder::TransparentInputInfo};
 
@@ -91,7 +92,7 @@ pub mod transparent {
     }
 
     impl transaction::sighash::TransparentAuthorizingContext for Unauthorized {
-        fn input_amounts(&self) -> Vec<transaction::components::Amount> {
+        fn input_amounts(&self) -> Vec<NonNegativeAmount> {
             self.inputs
                 .iter()
                 .map(|input| input.coin.value)

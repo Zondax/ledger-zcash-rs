@@ -29,6 +29,7 @@ use zcash_primitives::{
     },
 };
 
+use sapling_crypto::{bundle::{Authorization, OutputDescription, SpendDescription}, Bundle};
 use crate::{
     data::sighashdata::{
         TransactionDataSighash, TransactionDataSighashV5, SIGHASH_ANYONECANPAY, SIGHASH_MASK, SIGHASH_NONE,
@@ -144,8 +145,8 @@ pub(crate) fn transparent_outputs_hash_v5<T: Borrow<transparent::TxOut>>(vout: &
 ///
 /// Then, hash these together personalized by
 /// ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION_V5
-pub(crate) fn hash_sapling_spends_v5<A: sapling::Authorization>(
-    shielded_spends: &[sapling::SpendDescription<A>]
+pub(crate) fn hash_sapling_spends_v5<A: Authorization>(
+    shielded_spends: &[SpendDescription<A>]
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION_V5);
     if !shielded_spends.is_empty() {
@@ -153,14 +154,14 @@ pub(crate) fn hash_sapling_spends_v5<A: sapling::Authorization>(
         let mut nh = hasher(ZCASH_SAPLING_SPENDS_NONCOMPACT_HASH_PERSONALIZATION_V5);
         for s_spend in shielded_spends {
             // we build the hash of nullifiers separately for compact blocks.
-            ch.write_all(s_spend.nullifier.as_ref())
+            ch.write_all(s_spend.nullifier().as_ref())
                 .unwrap();
 
-            nh.write_all(&s_spend.cv.to_bytes())
+            nh.write_all(&s_spend.cv().to_bytes())
                 .unwrap();
-            nh.write_all(&s_spend.anchor.to_repr())
+            nh.write_all(&s_spend.anchor().to_repr())
                 .unwrap();
-            nh.write_all(&s_spend.rk.0.to_bytes())
+            nh.write_all(&s_spend.rk().try_into())
                 .unwrap();
         }
 
@@ -184,28 +185,28 @@ pub(crate) fn hash_sapling_spends_v5<A: sapling::Authorization>(
 ///
 /// Then, hash these together personalized with
 /// ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION_V5
-pub(crate) fn hash_sapling_outputs_v5<A>(shielded_outputs: &[sapling::OutputDescription<A>]) -> Blake2bHash {
+pub(crate) fn hash_sapling_outputs_v5<A>(shielded_outputs: &[OutputDescription<A>]) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION_V5);
     if !shielded_outputs.is_empty() {
         let mut ch = hasher(ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION_V5);
         let mut mh = hasher(ZCASH_SAPLING_OUTPUTS_MEMOS_HASH_PERSONALIZATION_V5);
         let mut nh = hasher(ZCASH_SAPLING_OUTPUTS_NONCOMPACT_HASH_PERSONALIZATION_V5);
         for s_out in shielded_outputs {
-            ch.write_all(s_out.cmu.to_repr().as_ref())
+            ch.write_all(s_out.cmu().to_repr().as_ref())
                 .unwrap();
-            ch.write_all(s_out.ephemeral_key.as_ref())
+            ch.write_all(s_out.ephemeral_key().as_ref())
                 .unwrap();
-            ch.write_all(&s_out.enc_ciphertext[.. 52])
-                .unwrap();
-
-            mh.write_all(&s_out.enc_ciphertext[52 .. 564])
+            ch.write_all(&s_out.enc_ciphertext()[.. 52])
                 .unwrap();
 
-            nh.write_all(&s_out.cv.to_bytes())
+            mh.write_all(&s_out.enc_ciphertext()[52 .. 564])
                 .unwrap();
-            nh.write_all(&s_out.enc_ciphertext[564 ..])
+
+            nh.write_all(&s_out.cv().to_bytes())
                 .unwrap();
-            nh.write_all(&s_out.out_ciphertext)
+            nh.write_all(&s_out.enc_ciphertext()[564 ..])
+                .unwrap();
+            nh.write_all(&s_out.out_ciphertext())
                 .unwrap();
         }
 
@@ -261,16 +262,16 @@ fn hash_transparent_txid_data(t_digests: Option<TransparentPreDigest>) -> Blake2
     h.finalize()
 }
 
-fn hash_sapling_txid_data<A: sapling::Authorization>(bundle: Option<&sapling::Bundle<A>>) -> Blake2bHash {
+fn hash_sapling_txid_data<A: Authorization>(bundle: Option<&Bundle<A, Amount>>) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION_V5);
     if let Some(b) = bundle {
-        h.write_all(hash_sapling_spends_v5(&b.shielded_spends).as_bytes())
+        h.write_all(hash_sapling_spends_v5(&b.shielded_spends()).as_bytes())
             .unwrap();
 
-        h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs).as_bytes())
+        h.write_all(hash_sapling_outputs_v5(&b.shielded_outputs()).as_bytes())
             .unwrap();
 
-        h.write_all(&b.value_balance.to_i64_le_bytes())
+        h.write_all(&b.value_balance().to_i64_le_bytes())
             .unwrap();
     }
     h.finalize()
@@ -348,7 +349,7 @@ where
     let sapling_binding_in = [].to_vec();
     let sapling_binding_out = [].to_vec();
     let (shielded_spends, shielded_outputs, vb) = match &tx.sapling_bundle() {
-        Some(z_tx) => (&z_tx.shielded_spends, &z_tx.shielded_outputs, z_tx.value_balance),
+        Some(z_tx) => (&z_tx.shielded_spends(), &z_tx.shielded_outputs(), z_tx.value_balance()),
         None => (&sapling_binding_in, &sapling_binding_out, Amount::from_u64(0).unwrap()),
     };
 

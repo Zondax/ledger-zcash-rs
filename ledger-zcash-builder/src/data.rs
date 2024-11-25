@@ -24,12 +24,18 @@ pub mod sighashdata_v4;
 pub mod sighashdata_v5;
 use serde::{Deserialize, Serialize};
 use sighashdata::TransactionDataSighash;
-use zcash_primitives::{
+use sapling_crypto::{
     keys::OutgoingViewingKey,
+    MerklePath,
+    Node,
+    PaymentAddress,
+    ProofGenerationKey, 
+    Rseed,
+};
+use redjubjub::{Signature, SpendAuth};
+use zcash_primitives::{
     legacy::Script,
     memo::MemoBytes as Memo,
-    merkle_tree::MerklePath,
-    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
 
@@ -194,7 +200,7 @@ pub struct SpendBuilderInfo {
     #[serde(deserialize_with = "amount_deserialize")]
     pub value: Amount, // Expected: u64 value representing an Amount
     #[serde(deserialize_with = "merkle_path_deserialize")]
-    pub witness: MerklePath<Node>, // Expected: Hex-encoded string representing a MerklePath<Node>
+    pub witness: MerklePath, // Expected: Hex-encoded string representing a MerklePath<Node>
     #[serde(deserialize_with = "rseed_deserialize")]
     pub rseed: Rseed, // Expected: Hex-encoded string representing a Rseed
 }
@@ -227,5 +233,5 @@ pub struct TransactionSignatures {
     #[serde(deserialize_with = "t_sig_deserialize")]
     pub transparent_sigs: Vec<secp256k1::ecdsa::Signature>, // Expected: List of hex-encoded strings representing secp256k1::ecdsa::Signature
     #[serde(deserialize_with = "s_sig_deserialize")]
-    pub sapling_sigs: Vec<Signature>, // Expected: List of hex-encoded strings representing Signature
+    pub sapling_sigs: Vec<Signature<SpendAuth>>, // Expected: List of hex-encoded strings representing Signature
 }

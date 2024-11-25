@@ -11,16 +11,14 @@ use group::{cofactor::CofactorGroup, GroupEncoding};
 use jubjub::SubgroupPoint;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
-use zcash_note_encryption::NoteEncryption;
+use sapling_crypto::{
+    bundle::{Authorization, GrothProofBytes}, keys::OutgoingViewingKey, note_encryption::{sapling_note_encryption, SaplingDomain, Zip212Enforcement}, Diversifier, MerklePath, Node, Note, PaymentAddress, ProofGenerationKey, Rseed
+};
+use zcash_note_encryption::{Domain, NoteEncryption};
 use zcash_primitives::{
-    consensus,
-    keys::OutgoingViewingKey,
+    consensus::{self, ZIP212_GRACE_PERIOD},
     legacy::{Script, TransparentAddress},
     memo::MemoBytes as Memo,
-    merkle_tree::MerklePath,
-    sapling::{
-        note_encryption::sapling_note_encryption, Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
-    },
     transaction::{
         self,
         components::{sapling, transparent, Amount, OutPoint, TxIn, TxOut, GROTH_PROOF_SIZE},
@@ -43,7 +41,7 @@ pub struct SpendDescriptionInfo {
     pub note: Note,
     pub alpha: jubjub::Fr,
     // get both from ledger and generate self
-    pub merkle_path: MerklePath<Node>,
+    pub merkle_path: MerklePath,
     #[educe(Debug(ignore))]
     pub proofkey: ProofGenerationKey,
     // get from ledger
@@ -72,17 +70,13 @@ impl SaplingOutput {
         rseed: Rseed,
         hashseed: Option<HashSeed>,
     ) -> Result<Self, Error> {
-        let g_d = match to.g_d() {
-            Some(g_d) => g_d,
-            None => return Err(Error::InvalidAddress),
-        };
         if value.is_negative() {
             return Err(Error::InvalidAmount);
         }
 
         // let rseed = generate_random_rseed::<P, R>(height, rng);
-
-        let note = Note { g_d, pk_d: *to.pk_d(), value: value.into(), rseed };
+        
+        let note = Note::from_parts(to, value, rseed);
 
         Ok(SaplingOutput { ovk, to, note, memo: memo.unwrap_or_else(Memo::empty), rcv, hashseed })
     }
@@ -93,13 +87,13 @@ impl SaplingOutput {
         ctx: &mut PR::SaplingProvingContext,
         rng: &mut R,
         params: &P,
-    ) -> transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof>
+    ) -> transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as Authorization>::SpendProof>
     {
         let mut encryptor =
-            sapling_note_encryption::<R, P>(self.ovk, self.note.clone(), self.to.clone(), self.memo, rng);
+            sapling_note_encryption::<R, P>(self.ovk, self.note.clone(), self.memo, rng);
 
         let (zkproof, cv) = prover
-            .output_proof(ctx, *encryptor.esk(), self.to, self.note.rcm(), self.note.value, self.rcv)
+            .output_proof(ctx, *encryptor.esk(), self.to, self.note.rcm(), self.note.value(), self.rcv)
             .expect("output proof");
 
         let cmu = self.note.cmu();
@@ -130,9 +124,9 @@ impl SaplingOutput {
             array
         };
 
-        let ephemeral_key = encryptor.epk().to_bytes().into();
+        let ephemeral_key = encryptor.epk();
 
-        transaction::components::OutputDescription { cv, cmu, ephemeral_key, enc_ciphertext, out_ciphertext, zkproof }
+        transaction::components::OutputDescription::from_parts(cv, cmu, ephemeral_key, enc_ciphertext, out_ciphertext, zkproof)
     }
 }
 
@@ -187,8 +181,8 @@ impl SaplingMetadata {
     }
 }
 
-impl From<sapling::builder::SaplingMetadata> for SaplingMetadata {
-    fn from(tx_meta: sapling::builder::SaplingMetadata) -> Self {
+impl From<sapling_crypto::builder::SaplingMetadata> for SaplingMetadata {
+    fn from(tx_meta: sapling_crypto::builder::SaplingMetadata) -> Self {
         let mut spends = vec![];
         let mut outputs = vec![];
 
@@ -254,13 +248,13 @@ pub struct SpendDescription {
 }
 
 impl SpendDescription {
-    pub fn from(info: &sapling::SpendDescription<hsmauth::sapling::Unauthorized>) -> SpendDescription {
+    pub fn from(info: &sapling_crypto::bundle::SpendDescription<hsmauth::sapling::Unauthorized>) -> SpendDescription {
         SpendDescription {
-            cv: info.cv.to_bytes(),
-            anchor: info.anchor.to_bytes(),
-            nullifier: info.nullifier.0,
-            rk: info.rk.0.to_bytes(),
-            zkproof: info.zkproof,
+            cv: info.cv().to_bytes(),
+            anchor: info.anchor().to_bytes(),
+            nullifier: info.nullifier().0,
+            rk: info.rk().try_into(),
+            zkproof: info.zkproof(),
         }
     }
 
@@ -287,21 +281,21 @@ pub struct OutputDescription {
 }
 
 impl
-    From<&transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof>>
+    From<&transaction::components::OutputDescription<<hsmauth::sapling::Unauthorized as Authorization>::OutputProof>>
     for OutputDescription
 {
     fn from(
         from: &transaction::components::OutputDescription<
-            <hsmauth::sapling::Unauthorized as sapling::Authorization>::Proof,
+            <hsmauth::sapling::Unauthorized as Authorization>::OutputProof,
         >
     ) -> Self {
         Self {
-            cv: from.cv.to_bytes(),
-            cmu: from.cmu.to_bytes(),
-            ephemeral_key: from.ephemeral_key.0,
-            enc_ciphertext: from.enc_ciphertext,
-            out_ciphertext: from.out_ciphertext,
-            zkproof: from.zkproof,
+            cv: from.cv().to_bytes(),
+            cmu: from.cmu().to_bytes(),
+            ephemeral_key: from.ephemeral_key().try_into(),
+            enc_ciphertext: from.enc_ciphertext(),
+            out_ciphertext: from.out_ciphertext(),
+            zkproof: from.zkproof(),
         }
     }
 }
@@ -322,7 +316,7 @@ impl OutputDescription {
 
 /// Converts a zcash_primitives' SpendDescription to the HSM-compatible format
 pub fn spend_data_hms_fromtx(
-    input: &[sapling::SpendDescription<hsmauth::sapling::Unauthorized>]
+    input: &[sapling_crypto::bundle::SpendDescription<hsmauth::sapling::Unauthorized>]
 ) -> Vec<SpendDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
@@ -334,7 +328,7 @@ pub fn spend_data_hms_fromtx(
 
 /// Converts a zcash_primitives' OutputDescription to the HSM-compatible format
 pub fn output_data_hsm_fromtx(
-    input: &[sapling::OutputDescription<sapling::GrothProofBytes>]
+    input: &[sapling_crypto::bundle::OutputDescription<GrothProofBytes>]
 ) -> Vec<OutputDescription> {
     let mut data = Vec::new();
     for info in input.iter() {
@@ -350,7 +344,7 @@ pub fn spend_old_data_fromtx(data: &[SpendDescriptionInfo]) -> Vec<NullifierInpu
     for info in data.iter() {
         let n = NullifierInput {
             rcm_old: info.note.rcm().to_bytes(),
-            note_position: info.merkle_path.position.to_le_bytes(),
+            note_position: info.merkle_path.position().to_le_bytes(),
         };
         v.push(n);
     }

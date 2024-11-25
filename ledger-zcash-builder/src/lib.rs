@@ -36,13 +36,20 @@ use jubjub::AffinePoint;
 use rand::RngCore;
 use rand_core::OsRng;
 use txbuilder::SaplingMetadata;
+use redjubjub::Signature;
+use sapling_crypto::{
+    keys::OutgoingViewingKey,
+    MerklePath,
+    Node,
+    PaymentAddress,
+    ProofGenerationKey,
+    Rseed
+};
+use incrementalmerkletree::witness::IncrementalWitness;
 use zcash_primitives::{
     consensus::{self, Parameters, TestNetwork},
-    keys::OutgoingViewingKey,
     legacy::Script,
     memo::MemoBytes as Memo,
-    merkle_tree::{IncrementalWitness, MerklePath},
-    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::{
         components::{Amount, OutPoint, TxOut},
         Transaction,

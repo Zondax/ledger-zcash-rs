@@ -4,14 +4,17 @@ use group::GroupEncoding;
 use jubjub::{Fr, SubgroupPoint};
 use serde::{de::Error, Deserialize, Deserializer, Serializer};
 use zcash_primitives::{
-    keys::OutgoingViewingKey,
     legacy::Script,
     memo::MemoBytes as Memo,
-    merkle_tree::{IncrementalWitness, MerklePath},
-    sapling::{redjubjub::Signature, Node, PaymentAddress, ProofGenerationKey, Rseed},
     transaction::components::{Amount, OutPoint},
 };
-
+use sapling_crypto::{
+    MerklePath,
+    keys::OutgoingViewingKey,
+    Node, PaymentAddress, ProofGenerationKey, Rseed
+};
+use redjubjub::{Signature, SpendAuth};
+use incrementalmerkletree::witness::IncrementalWitness;
 use crate::HashSeed;
 
 /**
@@ -200,7 +203,7 @@ where
  * @param deserializer - The deserializer instance.
  * @returns A result containing the deserialized `MerklePath<Node>` or an error.
  */
-pub fn merkle_path_deserialize<'de, D>(deserializer: D) -> Result<MerklePath<Node>, D::Error>
+pub fn merkle_path_deserialize<'de, D>(deserializer: D) -> Result<MerklePath, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -266,7 +269,7 @@ where
  * @param deserializer - The deserializer instance.
  * @returns A result containing the deserialized list of `Signature` or an error.
  */
-pub fn s_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<Signature>, D::Error>
+pub fn s_sig_deserialize<'de, D>(deserializer: D) -> Result<Vec<Signature<SpendAuth>>, D::Error>
 where
     D: Deserializer<'de>,
 {
