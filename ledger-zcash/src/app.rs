@@ -42,7 +42,7 @@ type NullifierRaw = [u8; NF_SIZE];
 type SignatureRaw = [u8; SIG_SIZE];
 
 /// -
-pub struct HashSeed(pub [u8; 32]);
+type HashSeedRaw = [u8; HASHSEED_SIZE];
 
 /// Ledger App
 pub struct ZcashApp<E> {
@@ -509,7 +509,7 @@ where
     }
 
     /// Get the information needed from ledger to make a shielded output
-    pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, RSeedRawAfterZip212, Option<HashSeed>), LedgerAppError<E::Error>> {
+    pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, RSeedRawAfterZip212, Option<HashSeedRaw>), LedgerAppError<E::Error>> {
         let command = APDUCommand { cla: Self::CLA, ins: INS_EXTRACT_OUTPUT, p1: 0x00, p2: 0x00, data: vec![] };
 
         let response = self
@@ -549,7 +549,7 @@ where
         let hashseed = if bytes.len() == outputdata_hashseed_size {
             let mut seed = [0u8; HASHSEED_SIZE];
             seed.copy_from_slice(&bytes[RCV_SIZE + RSEED_SIZE .. outputdata_hashseed_size]);
-            Some(HashSeed(seed))
+            Some(seed)
         } else {
             None
         };
