@@ -22,7 +22,6 @@
 use std::str;
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
 use ledger_zondax_generic::{App, AppExt, AppInfo, ChunkPayloadType, DeviceInfo, LedgerAppError, Version};
 use sha2::{Digest, Sha256};
@@ -397,7 +396,7 @@ where
     pub async fn get_ivk(
         &self,
         path: u32,
-    ) -> Result<jubjub::Fr, LedgerAppError<E::Error>> {
+    ) -> Result<IvkFrRaw, LedgerAppError<E::Error>> {
         let mut input_data = Vec::with_capacity(4);
         input_data
             .write_u32::<LittleEndian>(path)
@@ -426,18 +425,13 @@ where
         let mut bytes = [0u8; IVK_SIZE];
         bytes.copy_from_slice(&response_data[0 .. IVK_SIZE]);
 
-        let y = jubjub::Fr::from_bytes(&bytes);
-        if y.is_some().into() {
-            Ok(y.unwrap())
-        } else {
-            Err(LedgerAppError::InvalidPK)
-        }
+        Ok(bytes)
     }
 
     /// Get the information needed from ledger to make a shielded spend
     pub async fn get_spendinfo(
         &self
-    ) -> Result<(jubjub::SubgroupPoint, jubjub::Fr, jubjub::Fr, jubjub::Fr), LedgerAppError<E::Error>> {
+    ) -> Result<(AkSubgroupPointRaw, NskFrRaw, RcvFrRaw, AlphaFrRaw), LedgerAppError<E::Error>> {
         let command = APDUCommand { cla: Self::CLA, ins: INS_EXTRACT_SPEND, p1: 0x00, p2: 0x00, data: vec![] };
 
         let response = self
@@ -459,37 +453,16 @@ where
 
         let bytes = response_data;
 
-        let mut akb = [0u8; AK_SIZE];
-        akb.copy_from_slice(&bytes[0 .. AK_SIZE]);
-        let mut nskb = [0u8; NSK_SIZE];
-        nskb.copy_from_slice(&bytes[AK_SIZE .. AK_SIZE + NSK_SIZE]);
+        let mut ak = [0u8; AK_SIZE];
+        ak.copy_from_slice(&bytes[0 .. AK_SIZE]);
+        let mut nsk = [0u8; NSK_SIZE];
+        nsk.copy_from_slice(&bytes[AK_SIZE .. AK_SIZE + NSK_SIZE]);
 
-        let ak = jubjub::SubgroupPoint::from_bytes(&akb);
-        let nsk = jubjub::Fr::from_bytes(&nskb);
-        if ak.is_none().into() || nsk.is_none().into() {
-            return Err(LedgerAppError::AppSpecific(0, String::from("Invalid proofgeneration bytes")));
-        }
+        let mut rcv = [0u8; RCV_SIZE];
+        rcv.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE .. AK_SIZE + NSK_SIZE + RCV_SIZE]);
 
-        let ak = ak.unwrap();
-        let nsk = nsk.unwrap();
-
-        let mut rcvb = [0u8; RCV_SIZE];
-        rcvb.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE .. AK_SIZE + NSK_SIZE + RCV_SIZE]);
-
-        let f = jubjub::Fr::from_bytes(&rcvb);
-        if f.is_none().into() {
-            return Err(LedgerAppError::AppSpecific(0, String::from("Invalid rcv bytes")));
-        }
-        let rcv = f.unwrap();
-
-        let mut alphab = [0u8; ALPHA_SIZE];
-        alphab.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE + RCV_SIZE .. SPENDDATA_SIZE]);
-
-        let f = jubjub::Fr::from_bytes(&alphab);
-        if f.is_none().into() {
-            return Err(LedgerAppError::AppSpecific(0, String::from("Invalid rcv bytes")));
-        }
-        let alpha = f.unwrap();
+        let mut alpha = [0u8; ALPHA_SIZE];
+        alpha.copy_from_slice(&bytes[AK_SIZE + NSK_SIZE + RCV_SIZE .. SPENDDATA_SIZE]);
 
         Ok((ak, nsk, rcv, alpha))
     }
@@ -497,7 +470,7 @@ where
     /// Get the information needed from ledger to make a shielded output
     pub async fn get_outputinfo(
         &self
-    ) -> Result<(jubjub::Fr, RSeedRawAfterZip212, Option<HashSeedRaw>), LedgerAppError<E::Error>> {
+    ) -> Result<(RcvFrRaw, RSeedRawAfterZip212, Option<HashSeedRaw>), LedgerAppError<E::Error>> {
         let command = APDUCommand { cla: Self::CLA, ins: INS_EXTRACT_OUTPUT, p1: 0x00, p2: 0x00, data: vec![] };
 
         let response = self
@@ -520,14 +493,8 @@ where
 
         let bytes = response_data;
 
-        let mut rcvb = [0u8; RCV_SIZE];
-        rcvb.copy_from_slice(&bytes[0 .. RCV_SIZE]);
-
-        let f = jubjub::Fr::from_bytes(&rcvb);
-        if f.is_none().into() {
-            return Err(LedgerAppError::AppSpecific(0, String::from("Invalid rcv bytes")));
-        }
-        let rcv = f.unwrap();
+        let mut rcv = [0u8; RCV_SIZE];
+        rcv.copy_from_slice(&bytes[0 .. RCV_SIZE]);
 
         let mut rseedb_afterzip212 = [0u8; RSEED_SIZE];
         rseedb_afterzip212.copy_from_slice(&bytes[RCV_SIZE .. RCV_SIZE + RSEED_SIZE]);
@@ -584,7 +551,7 @@ where
     }
 
     /// Get a transparent signature from the ledger
-    pub async fn get_transparent_signature(&self) -> Result<secp256k1::ecdsa::Signature, LedgerAppError<E::Error>> {
+    pub async fn get_transparent_signature(&self) -> Result<Secp256k1EcdsaCompactRaw, LedgerAppError<E::Error>> {
         let command = APDUCommand { cla: Self::CLA, ins: INS_EXTRACT_TRANSSIG, p1: 0x00, p2: 0x00, data: vec![] };
 
         let response = self
@@ -605,8 +572,10 @@ where
 
         log::info!("Received response {}", response_data.len());
 
-        secp256k1::ecdsa::Signature::from_compact(&response_data[0 .. SIG_SIZE])
-            .map_err(|_| LedgerAppError::InvalidSignature)
+        let mut signature_raw = [0u8; SIG_SIZE];
+        signature_raw.copy_from_slice(&response_data[0 .. SIG_SIZE]);
+
+        Ok(signature_raw)
     }
 
     /// Get a shielded spend signature from the ledger
