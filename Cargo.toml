@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crate_test", "ledger-zcash", "ledger-zcash-builder"]
+members = ["crate_test", "ledger-zcash-app-builder", "ledger-zcash-chain-builder"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
