@@ -37,8 +37,5 @@ pub mod zcash;
 #[path = "./txbuilder.rs"]
 pub mod builder;
 
-/// Module containing additional APDU command handling.
-mod apdu_extra;
-
 /// Module containing configuration constants for the application.
 pub mod config;
