@@ -19,7 +19,6 @@ name = "ledger_zcash"
 default = []
 
 [dependencies]
-arrayvec = "0.7"
 byteorder = "1.5"
 cfg-if = "1"
 lazy_static = "1"
@@ -30,13 +29,6 @@ educe = "0.5"
 log = "0.4"
 sha2 = "0.10.8"
 thiserror = "1.0"
-
-ff = "0.12"
-group = "0.12"
-jubjub = { version = "0.9", default-features = false }
-rand_core = "0.6"
-ripemd = "0.1"
-secp256k1 = { version = "0.29", default-features = false }
 
 zx-bip44 = "0.1.0"
 ledger-transport = "0.11"
