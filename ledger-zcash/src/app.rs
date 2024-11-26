@@ -29,20 +29,7 @@ use sha2::{Digest, Sha256};
 use zx_bip44::BIP44Path;
 
 use crate::config::*;
-
-type PublicKeySecp256k1 = [u8; PK_LEN_SECP256K1];
-type PaymentAddressRaw = [u8; PK_LEN_SAPLING];
-
-type OutgoingViewKeyRaw = [u8; OVK_SIZE];
-
-type RSeedRawAfterZip212 = [u8; RSEED_SIZE];
-
-type NullifierRaw = [u8; NF_SIZE];
-
-type SignatureRaw = [u8; SIG_SIZE];
-
-/// -
-type HashSeedRaw = [u8; HASHSEED_SIZE];
+use crate::types::*;
 
 /// Ledger App
 pub struct ZcashApp<E> {
