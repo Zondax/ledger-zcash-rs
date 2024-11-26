@@ -80,22 +80,10 @@ pub const HASHSEED_SIZE: usize = 32;
 pub const OUTPUTDATA_SIZE: usize = RCV_SIZE + RSEED_SIZE;
 
 /// Public Key Length for secp256k1
-pub const PK_LEN_SECP261K1: usize = 33;
+pub const PK_LEN_SECP256K1: usize = 33;
 
 /// Public Key Length for Sapling
 pub const PK_LEN_SAPLING: usize = 43;
-
-/// Transparent input size: BIP44-path (20) + script (26) + value (8)
-pub const T_IN_INPUT_SIZE: usize = 54;
-
-/// Transparent output size: script (26) + value (8)
-pub const T_OUT_INPUT_SIZE: usize = 34;
-
-/// Shielded spend input size: zip32-path (4) + address (43) + value (8)
-pub const S_SPEND_INPUT_SIZE: usize = 55;
-
-/// Shielded output input size: address (43) + value (8) + memotype (1) + ovk(32)
-pub const S_OUT_INPUT_SIZE: usize = 84;
 
 /// Signature size for transparent and shielded signatures
 pub const SIG_SIZE: usize = 64;
