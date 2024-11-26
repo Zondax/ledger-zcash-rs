@@ -7,8 +7,8 @@ edition = "2021"
 zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], package = "zcash_primitives" }
 
 
-ledger-zcash-builder = { path = "../ledger-zcash-builder", version = "=0.11.2" }
-ledger-zcash = { path = "../ledger-zcash", version = "=0.11.2" }
+ledger-zcash-chain-builder = { path = "../ledger-zcash-chain-builder", version = "=0.11.2" }
+ledger-zcash-app-builder = { path = "../ledger-zcash-app-builder", version = "=0.11.2" }
 
 [dev-dependencies]
 serde = { version = "1.0.203", features = ["derive"] }

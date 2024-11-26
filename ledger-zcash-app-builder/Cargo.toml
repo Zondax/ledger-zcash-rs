@@ -1,5 +1,5 @@
 [package]
-name = "ledger-zcash"
+name = "ledger-zcash-app-builder"
 description = "Library to integrate with the Ledger Zcash app"
 version = "0.11.2"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ edition = "2021"
 autobenches = false
 
 [lib]
-name = "ledger_zcash"
+name = "ledger_zcash_app_builder"
 
 [features]
 default = ["zcash_primitives"]
@@ -41,7 +41,7 @@ secp256k1 = { version = "0.29", default-features = false }
 zx-bip44 = "0.1.0"
 ledger-transport = "0.11"
 ledger-zondax-generic = "0.11"
-ledger-zcash-builder = { path = "../ledger-zcash-builder"}
+ledger-zcash-chain-builder = { path = "../ledger-zcash-chain-builder" }
 
 
 zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }

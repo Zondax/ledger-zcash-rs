@@ -1,5 +1,5 @@
 [package]
-name = "ledger-zcash-builder"
+name = "ledger-zcash-chain-builder"
 description = "Library to build transactions for HSM apps"
 version = "0.11.2"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ edition = "2021"
 autobenches = false
 
 [lib]
-name = "ledger_zcash_builder"
+name = "ledger_zcash_chain_builder"
 
 [features]
 default = ["zcash_proofs"]

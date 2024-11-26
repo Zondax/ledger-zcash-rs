@@ -61,7 +61,7 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use ledger_zcash_builder::LocalTxProver;
+    /// use ledger_zcash_chain_builder::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
     ///     Path::new("/path/to/sapling-spend.params"),
@@ -88,7 +88,7 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use ledger_zcash_builder::LocalTxProver;
+    /// use ledger_zcash_chain_builder::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8]);
     /// ```
@@ -115,7 +115,7 @@ impl LocalTxProver {
     /// # Examples
     ///
     /// ```
-    /// use ledger_zcash_builder::LocalTxProver;
+    /// use ledger_zcash_chain_builder::LocalTxProver;
     ///
     /// match LocalTxProver::with_default_location() {
     ///     Some(tx_prover) => (),

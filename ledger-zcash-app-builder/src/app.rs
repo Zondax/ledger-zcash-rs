@@ -24,8 +24,8 @@ use std::{convert::TryFrom, path::Path, str};
 use byteorder::{LittleEndian, WriteBytesExt};
 use group::GroupEncoding;
 use ledger_transport::{APDUCommand, APDUErrorCode, Exchange};
-use ledger_zcash_builder::data::{SaplingInData, SaplingOutData};
-use ledger_zcash_builder::{
+use ledger_zcash_chain_builder::data::{SaplingInData, SaplingOutData};
+use ledger_zcash_chain_builder::{
     data::{
         HashSeed, HsmTxData, InitData, OutputBuilderInfo, SpendBuilderInfo, TinData, ToutData,
         TransparentInputBuilderInfo, TransparentOutputBuilderInfo,
@@ -426,7 +426,7 @@ where
         let builder: Builder =
             Builder::try_from(input).map_err(|e: BuilderError| LedgerAppError::AppSpecific(0, e.to_string()))?;
 
-        let prover = ledger_zcash_builder::txprover::LocalTxProver::new(
+        let prover = ledger_zcash_chain_builder::txprover::LocalTxProver::new(
             Path::new("../params/sapling-spend.params"),
             Path::new("../params/sapling-output.params"),
         );
