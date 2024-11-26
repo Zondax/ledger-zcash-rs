@@ -17,9 +17,11 @@ use std::convert::TryFrom;
 use std::sync::mpsc;
 
 use arrayvec::ArrayVec;
+use group::GroupEncoding;
 use ledger_zcash_chain_builder::data::HashSeed;
 use ledger_zcash_chain_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use rand_core::{CryptoRng, RngCore};
+use secp256k1::Secp256k1;
 use zcash_primitives::sapling::redjubjub::Signature;
 use zcash_primitives::sapling::{ProofGenerationKey, Rseed};
 use zcash_primitives::{
@@ -569,11 +571,16 @@ impl Builder {
         }
 
         for (i, info) in vec_sspend.into_iter().enumerate() {
-            let (ak, nsk, rcv, alpha) = app_builder
+            let (ak_raw, nsk_raw, rcv_raw, alpha_raw) = app_builder
                 .app
                 .get_spendinfo()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveSpendInfo(i))?;
+
+            let ak = jubjub::SubgroupPoint::from_bytes(&ak_raw).unwrap();
+            let nsk = jubjub::Fr::from_bytes(&nsk_raw).unwrap();
+            let rcv = jubjub::Fr::from_bytes(&rcv_raw).unwrap();
+            let alpha = jubjub::Fr::from_bytes(&alpha_raw).unwrap();
 
             let proofkey = ProofGenerationKey { ak, nsk };
             hsmbuilder
@@ -583,7 +590,7 @@ impl Builder {
         }
 
         for (i, info) in vec_soutput.into_iter().enumerate() {
-            let (rcv, rseed_raw, hash_seed_raw) = app_builder
+            let (rcv_raw, rseed_raw, hash_seed_raw) = app_builder
                 .app
                 .get_outputinfo()
                 .await
@@ -593,8 +600,10 @@ impl Builder {
                 return Err(BuilderError::InvalidOVKHashSeed(i));
             }
 
+            let rcv = jubjub::Fr::from_bytes(&rcv_raw).unwrap();
             let rseed = Rseed::AfterZip212(rseed_raw);
             let hash_seed = Some(HashSeed(hash_seed_raw.unwrap()));
+
             hsmbuilder
                 .add_sapling_output(info.ovk, info.address, info.value, info.memo, rcv, rseed, hash_seed)
                 // parameters checked before
@@ -616,11 +625,13 @@ impl Builder {
 
         // retrieve signatures
         for i in 0 .. num_transparent_inputs {
-            let sig = app_builder
+            let sig_raw = app_builder
                 .app
                 .get_transparent_signature()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveTransparentSig(i))?;
+
+            let sig = secp256k1::ecdsa::Signature::from_compact(&sig_raw).unwrap();
             tsigs.push(sig);
         }
 
