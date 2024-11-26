@@ -80,7 +80,7 @@ pub const HASHSEED_SIZE: usize = 32;
 pub const OUTPUTDATA_SIZE: usize = RCV_SIZE + RSEED_SIZE;
 
 /// Public Key Length for secp256k1
-pub const PK_LEN_SECP261K1: usize = 33;
+pub const PK_LEN_SECP256K1: usize = 33;
 
 /// Public Key Length for Sapling
 pub const PK_LEN_SAPLING: usize = 43;

@@ -30,7 +30,7 @@ use zx_bip44::BIP44Path;
 
 use crate::config::*;
 
-type PublicKeySecp256k1 = [u8; PK_LEN_SECP261K1];
+type PublicKeySecp256k1 = [u8; PK_LEN_SECP256K1];
 type PaymentAddressRaw = [u8; PK_LEN_SAPLING];
 
 type OutgoingViewKeyRaw = [u8; OVK_SIZE];
@@ -222,18 +222,18 @@ where
         }
 
         let response_data = response.data();
-        if response_data.len() < PK_LEN_SECP261K1 {
+        if response_data.len() < PK_LEN_SECP256K1 {
             return Err(LedgerAppError::InvalidPK);
         }
 
         log::info!("Received response {}", response_data.len());
 
-        let mut address = AddressUnshielded { public_key: [0; PK_LEN_SECP261K1], address: "".to_string() };
+        let mut address = AddressUnshielded { public_key: [0; PK_LEN_SECP256K1], address: "".to_string() };
 
         address
             .public_key
-            .copy_from_slice(&response_data[.. PK_LEN_SECP261K1]);
-        str::from_utf8(&response_data[PK_LEN_SECP261K1 ..])
+            .copy_from_slice(&response_data[.. PK_LEN_SECP256K1]);
+        str::from_utf8(&response_data[PK_LEN_SECP256K1 ..])
             .map_err(|_e| LedgerAppError::Utf8)?
             .clone_into(&mut address.address);
 
