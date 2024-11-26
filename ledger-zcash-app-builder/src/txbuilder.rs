@@ -17,8 +17,11 @@ use std::convert::TryFrom;
 use std::sync::mpsc;
 
 use arrayvec::ArrayVec;
+use ledger_zcash_chain_builder::data::HashSeed;
 use ledger_zcash_chain_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use rand_core::{CryptoRng, RngCore};
+use zcash_primitives::sapling::redjubjub::Signature;
+use zcash_primitives::sapling::{ProofGenerationKey, Rseed};
 use zcash_primitives::{
     consensus::{self, Parameters},
     keys::OutgoingViewingKey,
@@ -34,7 +37,9 @@ use zcash_primitives::{
 };
 use zx_bip44::BIP44Path;
 
-use crate::{DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput, DataTransparentOutput, ZcashApp};
+use crate::{
+    DataInput, DataShieldedOutput, DataShieldedSpend, DataTransparentInput, DataTransparentOutput, ZcashAppBuilder,
+};
 
 /// Ergonomic ZCash transaction builder for HSM
 #[derive(Default)]
@@ -507,7 +512,7 @@ impl Builder {
     #[allow(clippy::too_many_arguments)]
     pub async fn build<P, E, TX, R>(
         mut self,
-        app: &ZcashApp<E>,
+        app_builder: &ZcashAppBuilder<E>,
         params: P,
         prover: &TX,
         fee: u64,
@@ -537,7 +542,8 @@ impl Builder {
 
         let input = self.into_data_input(fee);
         log::trace!("Building TX with: {:?}", &input);
-        app.init_tx(input.to_inittx_data())
+        app_builder
+            .init_tx(input.to_inittx_data())
             .await
             .map_err(|_| BuilderError::UnableToInitializeTx)?;
 
@@ -563,11 +569,13 @@ impl Builder {
         }
 
         for (i, info) in vec_sspend.into_iter().enumerate() {
-            let (proofkey, rcv, alpha) = app
+            let (ak, nsk, rcv, alpha) = app_builder
+                .app
                 .get_spendinfo()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveSpendInfo(i))?;
 
+            let proofkey = ProofGenerationKey { ak, nsk };
             hsmbuilder
                 .add_sapling_spend(info.diversifier, info.note, info.witness, alpha, proofkey, rcv)
                 // parameters checked before
@@ -575,15 +583,18 @@ impl Builder {
         }
 
         for (i, info) in vec_soutput.into_iter().enumerate() {
-            let (rcv, rseed, hash_seed) = app
+            let (rcv, rseed_raw, hash_seed_raw) = app_builder
+                .app
                 .get_outputinfo()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveOutputInfo(i))?;
 
-            if info.ovk.is_none() && hash_seed.is_none() {
+            if info.ovk.is_none() && hash_seed_raw.is_none() {
                 return Err(BuilderError::InvalidOVKHashSeed(i));
             }
 
+            let rseed = Rseed::AfterZip212(rseed_raw);
+            let hash_seed = Some(HashSeed(hash_seed_raw.unwrap()));
             hsmbuilder
                 .add_sapling_output(info.ovk, info.address, info.value, info.memo, rcv, rseed, hash_seed)
                 // parameters checked before
@@ -595,7 +606,7 @@ impl Builder {
             .build_with_progress_notifier(branch, Some(tx_version), prover, progress_notifier)
             .map_err(|_| BuilderError::FailedToBuildTx)?;
 
-        let _signed_hash = app
+        let _signed_hash = app_builder
             .checkandsign(ledger_data, tx_version)
             .await
             .map_err(|_| BuilderError::FailedToSignTx)?;
@@ -605,7 +616,8 @@ impl Builder {
 
         // retrieve signatures
         for i in 0 .. num_transparent_inputs {
-            let sig = app
+            let sig = app_builder
+                .app
                 .get_transparent_signature()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveTransparentSig(i))?;
@@ -613,10 +625,13 @@ impl Builder {
         }
 
         for i in 0 .. num_sapling_spends {
-            let sig = app
+            let sig_raw = app_builder
+                .app
                 .get_spend_signature()
                 .await
                 .map_err(|_| BuilderError::UnableToRetrieveSaplingSig(i))?;
+
+            let sig = Signature::read(sig_raw.as_ref()).unwrap();
             zsigs.push(sig);
         }
 

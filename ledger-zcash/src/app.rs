@@ -155,7 +155,7 @@ where
         data: Vec<u8>,
         hex_tx_version: u8,
     ) -> Result<[u8; 32], LedgerAppError<E::Error>> {
-        if hex_tx_version == 0u8 {
+        if hex_tx_version != 0x04 && hex_tx_version != 0x05 {
             return Err(LedgerAppError::AppSpecific(0, String::from("Unsupported transaction version")));
         }
         let start_command = APDUCommand {
