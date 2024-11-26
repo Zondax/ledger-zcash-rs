@@ -110,7 +110,8 @@ async fn get_nf() {
         127, 205, 232, 206, 17, 221, 232,
     ];
 
-    let resp = app.app
+    let resp = app
+        .app
         .get_nullifier(path, pos, &cm)
         .await
         .unwrap();
@@ -131,7 +132,8 @@ async fn address_unshielded() {
     let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
-    let resp = app.app
+    let resp = app
+        .app
         .get_address_unshielded(&path, false)
         .await
         .unwrap();
@@ -154,7 +156,8 @@ async fn address_shielded() {
     let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
-    let resp = app.app
+    let resp = app
+        .app
         .get_address_shielded(path, false)
         .await
         .unwrap();
@@ -177,7 +180,8 @@ async fn show_address_unshielded() {
     let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
-    let resp = app.app
+    let resp = app
+        .app
         .get_address_unshielded(&path, true)
         .await
         .unwrap();
@@ -200,7 +204,8 @@ async fn show_address_shielded() {
     let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
-    let resp = app.app
+    let resp = app
+        .app
         .get_address_shielded(path, true)
         .await
         .unwrap();
@@ -224,7 +229,8 @@ async fn get_div_list() {
     let startindex: [u8; 11] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let path = 1000;
 
-    let r = app.app
+    let r = app
+        .app
         .get_div_list(path, &startindex)
         .await;
     assert!(r.is_ok());
@@ -242,7 +248,8 @@ async fn get_addr_with_div() {
     let div: [u8; 11] = [198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220];
     let path = 1000;
 
-    let resp = app.app
+    let resp = app
+        .app
         .get_address_shielded_with_div(path, &div, true)
         .await;
     assert!(resp.is_ok());

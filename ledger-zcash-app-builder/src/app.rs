@@ -286,7 +286,7 @@ pub struct AddressShielded {
 impl<E> ZcashAppBuilder<E>
 where
     E: Exchange + Send + Sync,
-    E::Error: std::error::Error
+    E::Error: std::error::Error,
 {
     /// Initiates a transaction in the ledger
     pub async fn init_tx(
@@ -312,7 +312,9 @@ where
             _ => 0u8,
         };
 
-        self.app.checkandsign(data, hex_tx_version).await
+        self.app
+            .checkandsign(data, hex_tx_version)
+            .await
     }
 
     /// Does a complete transaction in the ledger
