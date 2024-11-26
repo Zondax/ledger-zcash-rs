@@ -112,7 +112,6 @@ where
         &self,
         data: Vec<u8>,
     ) -> Result<[u8; SHA256_DIGEST_SIZE], LedgerAppError<E::Error>> {
-
         log::info!("sending inittx data to ledger");
         log::info!("{}", hex::encode(&data));
 
@@ -509,7 +508,9 @@ where
     }
 
     /// Get the information needed from ledger to make a shielded output
-    pub async fn get_outputinfo(&self) -> Result<(jubjub::Fr, RSeedRawAfterZip212, Option<HashSeedRaw>), LedgerAppError<E::Error>> {
+    pub async fn get_outputinfo(
+        &self
+    ) -> Result<(jubjub::Fr, RSeedRawAfterZip212, Option<HashSeedRaw>), LedgerAppError<E::Error>> {
         let command = APDUCommand { cla: Self::CLA, ins: INS_EXTRACT_OUTPUT, p1: 0x00, p2: 0x00, data: vec![] };
 
         let response = self
