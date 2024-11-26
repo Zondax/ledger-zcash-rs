@@ -13,7 +13,7 @@ edition = "2021"
 autobenches = false
 
 [lib]
-name = "ledger_zcash"
+name = "ledger_zcash_app_builder"
 
 [features]
 default = ["zcash_primitives"]
