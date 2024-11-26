@@ -49,9 +49,9 @@ async fn version() {
 
     log::info!("Test");
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
-    let resp = app.get_version().await.unwrap();
+    let resp = app.app.get_version().await.unwrap();
 
     println!("mode  {}", resp.mode);
     println!("major {}", resp.major);
@@ -67,11 +67,11 @@ async fn version() {
 async fn get_key_ivk() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
 
-    let resp = app.get_ivk(path).await.unwrap();
+    let resp = app.app.get_ivk(path).await.unwrap();
 
     let ivk = hex::encode(resp.to_bytes());
 
@@ -83,13 +83,13 @@ async fn get_key_ivk() {
 async fn get_key_ovk() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
 
-    let resp = app.get_ovk(path).await.unwrap();
+    let resp = app.app.get_ovk(path).await.unwrap();
 
-    let ovk = hex::encode(resp.0);
+    let ovk = hex::encode(resp);
 
     assert_eq!(ovk, "6fc01eaa665e03a53c1e033ed0d77b670cf075ede4ada769997a2ed2ec225fca");
 }
@@ -99,7 +99,7 @@ async fn get_key_ovk() {
 async fn get_nf() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
 
@@ -110,7 +110,7 @@ async fn get_nf() {
         127, 205, 232, 206, 17, 221, 232,
     ];
 
-    let resp = app
+    let resp = app.app
         .get_nullifier(path, pos, &cm)
         .await
         .unwrap();
@@ -128,10 +128,10 @@ async fn get_nf() {
 async fn address_unshielded() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
-    let resp = app
+    let resp = app.app
         .get_address_unshielded(&path, false)
         .await
         .unwrap();
@@ -151,17 +151,17 @@ async fn address_unshielded() {
 async fn address_shielded() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
-    let resp = app
+    let resp = app.app
         .get_address_shielded(path, false)
         .await
         .unwrap();
 
-    assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
+    assert_eq!(resp.public_key.len(), PK_LEN_SAPLING);
 
-    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    let pk_hex = hex::encode(resp.public_key);
     println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
@@ -174,10 +174,10 @@ async fn address_shielded() {
 async fn show_address_unshielded() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = BIP44Path::from_string("m/44'/133'/0'/0/0").unwrap();
-    let resp = app
+    let resp = app.app
         .get_address_unshielded(&path, true)
         .await
         .unwrap();
@@ -197,17 +197,17 @@ async fn show_address_unshielded() {
 async fn show_address_shielded() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let path = 1000;
-    let resp = app
+    let resp = app.app
         .get_address_shielded(path, true)
         .await
         .unwrap();
 
-    assert_eq!(resp.public_key.to_bytes().len(), PK_LEN_SAPLING);
+    assert_eq!(resp.public_key.len(), PK_LEN_SAPLING);
 
-    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    let pk_hex = hex::encode(resp.public_key);
     println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
@@ -219,12 +219,12 @@ async fn show_address_shielded() {
 #[serial]
 async fn get_div_list() {
     init_logging();
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let startindex: [u8; 11] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let path = 1000;
 
-    let r = app
+    let r = app.app
         .get_div_list(path, &startindex)
         .await;
     assert!(r.is_ok());
@@ -237,17 +237,17 @@ async fn get_div_list() {
 async fn get_addr_with_div() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let div: [u8; 11] = [198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220];
     let path = 1000;
 
-    let resp = app
+    let resp = app.app
         .get_address_shielded_with_div(path, &div, true)
         .await;
     assert!(resp.is_ok());
     let resp = resp.unwrap();
-    let pk_hex = hex::encode(resp.public_key.to_bytes());
+    let pk_hex = hex::encode(resp.public_key);
     println!("Public Key   {:?}", pk_hex);
     println!("Address address {:?}", resp.address);
 
@@ -260,7 +260,7 @@ async fn get_addr_with_div() {
 async fn do_full_transaction_shieldedonly() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let addr = PaymentAddress::from_bytes(&[
         198, 158, 151, 156, 103, 99, 193, 176, 146, 56, 220, 107, 213, 220, 191, 53, 54, 13, 249, 93, 202, 223, 140,
@@ -352,7 +352,7 @@ async fn do_full_transaction_shieldedonly() {
 async fn do_full_transaction_combinedshieldtransparent() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let tin1 = DataTransparentInput {
         path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
@@ -449,7 +449,7 @@ async fn do_full_transaction_combinedshieldtransparent() {
 async fn do_full_transaction_transparentonly() {
     init_logging();
 
-    let app = ZcashApp::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
+    let app = ZcashAppBuilder::new(TransportNativeHID::new(&HIDAPI).expect("Unable to create transport"));
 
     let tin1 = DataTransparentInput {
         path: BIP44Path::from_string("m/44'/133'/5'/0/0").unwrap(),
