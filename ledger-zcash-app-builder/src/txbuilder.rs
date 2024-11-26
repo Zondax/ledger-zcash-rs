@@ -21,7 +21,6 @@ use group::GroupEncoding;
 use ledger_zcash_chain_builder::data::HashSeed;
 use ledger_zcash_chain_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use rand_core::{CryptoRng, RngCore};
-use secp256k1::Secp256k1;
 use zcash_primitives::sapling::redjubjub::Signature;
 use zcash_primitives::sapling::{ProofGenerationKey, Rseed};
 use zcash_primitives::{
