@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use ledger_zcash::builder::Builder as ZcashBuilder;
-use ledger_zcash_builder::{txbuilder::Builder, txprover};
+use ledger_zcash_app_builder::builder::Builder as ZcashBuilder;
+use ledger_zcash_chain_builder::{txbuilder::Builder, txprover};
 use zcash_primitives::{
     consensus::{self, TestNetwork},
     transaction::TxVersion,

@@ -17,7 +17,7 @@ use std::convert::TryFrom;
 use std::sync::mpsc;
 
 use arrayvec::ArrayVec;
-use ledger_zcash_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
+use ledger_zcash_chain_builder::{txbuilder::SaplingMetadata, txprover::HsmTxProver};
 use rand_core::{CryptoRng, RngCore};
 use zcash_primitives::{
     consensus::{self, Parameters},
@@ -533,7 +533,7 @@ impl Builder {
         let fee = self.setup_change_and_pad_outputs(rng, fee)?;
 
         let mut hsmbuilder =
-            ledger_zcash_builder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
+            ledger_zcash_chain_builder::txbuilder::Builder::new_with_fee_rng(params, height, rng, fee.into());
 
         let input = self.into_data_input(fee);
         log::trace!("Building TX with: {:?}", &input);
