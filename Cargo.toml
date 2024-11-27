@@ -1,13 +1,44 @@
-[workspace]
-resolver = "2"
-members = ["crate_test", "ledger-zcash", "ledger-zcash-app-builder", "ledger-zcash-chain-builder"]
+[package]
+name = "ledger-zcash"
+description = "Library to communicate with the Ledger Zcash app"
+version = "2.0.0"
+license = "Apache-2.0"
+authors = ["Zondax AG <hello@zondax.ch>"]
+homepage = "https://github.com/Zondax/ledger-zcash-rs"
+repository = "https://github.com/Zondax/ledger-zcash-rs"
+readme = "README.md"
+categories = ["authentication", "cryptography"]
+keywords = ["ledger", "nano", "apdu", "zcash"]
+edition = "2021"
+autobenches = false
 
-[profile.release]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
-overflow-checks = true
+[lib]
+name = "ledger_zcash"
 
-#[patch.crates-io]
-#ledger-transport = { path = "../ledger-rs/ledger-transport" }
-#ledger-zondax-generic = { path = "../ledger-rs/ledger-zondax-generic" }
-#ledger-transport-hid = { path = "../ledger-rs/ledger-transport-hid" }
+[features]
+default = []
+
+[dependencies]
+byteorder = "1.5"
+cfg-if = "1"
+lazy_static = "1"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.38", features = ["sync"] }
+educe = "0.5"
+log = "0.4"
+sha2 = "0.10.8"
+thiserror = "1.0"
+
+zx-bip44 = "0.1.0"
+ledger-transport = "0.11"
+ledger-zondax-generic = "0.11"
+
+[dev-dependencies]
+futures = "0.3"
+matches = "0.1"
+serial_test = "3.1"
+env_logger = { version = "0.11", default-features = false }
+tokio = { version = "1", features = ["full"] }
+
+ledger-transport-hid = "0.11"
