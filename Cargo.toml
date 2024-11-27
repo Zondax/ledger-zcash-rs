@@ -1,11 +1,13 @@
 [workspace]
 resolver = "2"
-members = [
-    "ledger-zcash",
-    "zcash-hsmbuilder"
-]
+members = ["crate_test", "ledger-zcash", "ledger-zcash-app-builder", "ledger-zcash-chain-builder"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
 overflow-checks = true
+
+#[patch.crates-io]
+#ledger-transport = { path = "../ledger-rs/ledger-transport" }
+#ledger-zondax-generic = { path = "../ledger-rs/ledger-zondax-generic" }
+#ledger-transport-hid = { path = "../ledger-rs/ledger-transport-hid" }

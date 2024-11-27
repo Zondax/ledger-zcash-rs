@@ -1,0 +1,55 @@
+[package]
+name = "ledger-zcash-chain-builder"
+description = "Library to build transactions for HSM apps"
+version = "0.11.2"
+license = "Apache-2.0"
+authors = ["Zondax AG <hello@zondax.ch>"]
+homepage = "https://github.com/Zondax/ledger-zcash-rs"
+repository = "https://github.com/Zondax/ledger-zcash-rs"
+readme = "README.md"
+categories = ["authentication", "cryptography"]
+keywords = ["ledger", "nano", "apdu", "zcash"]
+edition = "2021"
+autobenches = false
+
+[lib]
+name = "ledger_zcash_chain_builder"
+
+[features]
+default = ["zcash_proofs"]
+bundled-prover = ["wagyu-zcash-parameters"]
+local-prover = []
+
+[dependencies]
+tokio = { version = "1.38", features = ["sync"] }
+educe = "0.5"
+log = "0.4"
+lazy_static = "1"
+sha2 = "0.10.8"
+serde_derive = "1"
+serde = { version = "1", features = ["derive"] }
+byteorder = "1.5"
+cfg-if = "1.0.0"
+hex = { version = "0.4", default-features = false }
+
+bellman = { version = "0.13", default-features = false, features = ["groth16"] }
+blake2b_simd = "1"
+bls12_381 = { version = "0.7" }
+chacha20poly1305 = "0.9"
+ff = "0.12"
+group = "0.12"
+jubjub = { version = "0.9", default-features = false }
+pairing = { version = "0.22" }
+rand = { version = "0.8.5", default-features = false }
+rand_core = "0.6.4"
+ripemd = "0.1"
+secp256k1 = { version = "0.29" }
+
+#zcash
+wagyu-zcash-parameters = { version = "0.2", optional = true }
+
+zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["transparent-inputs"], package = "zcash_primitives" }
+zcash_proofs = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["multicore"], optional = true, package = "zcash_proofs" }
+zcash_note_encryption = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["pre-zip-212"], package = "zcash_note_encryption" }
+
+thiserror = "1.0"

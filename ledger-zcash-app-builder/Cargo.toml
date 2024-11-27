@@ -1,0 +1,57 @@
+[package]
+name = "ledger-zcash-app-builder"
+description = "Library to integrate with the Ledger Zcash app"
+version = "0.11.2"
+license = "Apache-2.0"
+authors = ["Zondax AG <hello@zondax.ch>"]
+homepage = "https://github.com/Zondax/ledger-zcash-rs"
+repository = "https://github.com/Zondax/ledger-zcash-rs"
+readme = "README.md"
+categories = ["authentication", "cryptography"]
+keywords = ["ledger", "nano", "apdu", "zcash"]
+edition = "2021"
+autobenches = false
+
+[lib]
+name = "ledger_zcash_app_builder"
+
+[features]
+default = ["zcash_primitives"]
+
+[dependencies]
+arrayvec = "0.7"
+byteorder = "1.5"
+cfg-if = "1"
+lazy_static = "1"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.38", features = ["sync"] }
+educe = "0.5"
+log = "0.4"
+sha2 = "0.10.8"
+thiserror = "1.0"
+
+ff = "0.12"
+group = "0.12"
+jubjub = { version = "0.9", default-features = false }
+rand_core = "0.6"
+ripemd = "0.1"
+secp256k1 = { version = "0.29", default-features = false }
+
+zx-bip44 = "0.1.0"
+ledger-transport = "0.11"
+ledger-zondax-generic = "0.11"
+ledger-zcash = { path = "../ledger-zcash" }
+ledger-zcash-chain-builder = { path = "../ledger-zcash-chain-builder" }
+
+
+zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["transparent-inputs"], optional = true, package = "zcash_primitives" }
+
+[dev-dependencies]
+futures = "0.3"
+matches = "0.1"
+serial_test = "3.1"
+env_logger = { version = "0.11", default-features = false }
+tokio = { version = "1", features = ["full"] }
+
+ledger-transport-hid = "0.11"

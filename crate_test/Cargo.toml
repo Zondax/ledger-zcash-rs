@@ -1,0 +1,15 @@
+[package]
+name = "crate_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["transparent-inputs"], package = "zcash_primitives" }
+
+
+ledger-zcash-chain-builder = { path = "../ledger-zcash-chain-builder", version = "=0.11.2" }
+ledger-zcash-app-builder = { path = "../ledger-zcash-app-builder", version = "=0.11.2" }
+
+[dev-dependencies]
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
