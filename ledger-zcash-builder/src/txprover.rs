@@ -20,8 +20,11 @@ use std::path::Path;
 use bellman::groth16::{Parameters, PreparedVerifyingKey, Proof};
 use bls12_381::Bls12;
 use ff::Field;
+use jubjub::Fq;
 use rand_core::OsRng;
-use redjubjub::{Binding, Signature, SpendAuth, VerificationKey};
+use redjubjub::{
+    Binding, Signature, SpendAuth, VerificationKey
+};
 use sapling_crypto::{
     bundle::GrothProofBytes, circuit::{Output, OutputParameters, Spend, SpendParameters}, prover::{OutputProver, SpendProver}, value::{NoteValue, ValueCommitTrapdoor}, Diversifier, MerklePath, PaymentAddress, ProofGenerationKey, Rseed
 };
@@ -290,7 +293,7 @@ impl SpendProver for LocalTxProver {
         value: NoteValue,
         alpha: jubjub::Fr,
         rcv: ValueCommitTrapdoor,
-        anchor: bls12_381::Scalar,
+        anchor: Fq,
         merkle_path: MerklePath,
     ) -> Option<Spend> {
         SpendParameters::prepare_circuit(

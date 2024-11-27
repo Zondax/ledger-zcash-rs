@@ -38,7 +38,7 @@ bls12_381 = { version = "0.7" }
 chacha20poly1305 = "0.9"
 ff = "0.12"
 group = "0.12"
-jubjub = { version = "0.9", default-features = false }
+jubjub = { version = "0.10", default-features = false }
 pairing = { version = "0.22" }
 rand = { version = "0.8.5", default-features = false }
 rand_core = "0.6.4"

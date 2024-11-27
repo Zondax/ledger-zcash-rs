@@ -26,7 +26,7 @@ use group::GroupEncoding;
 use pairing::Engine;
 use rand::RngCore;
 use rand_core::OsRng;
-use redjubjub::{SigType, Signature};
+use redjubjub::{Binding, Randomizer, SigType, Signature, SigningKey, SpendAuth, VerificationKey};
 use zcash_primitives::transaction::components::Amount;
 // use zcash_proofs::circuit::sapling::{Output, Spend};
 use sapling_crypto::{
@@ -92,7 +92,7 @@ impl SaplingProvingContext {
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
         rcv: jubjub::Fr,
-    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, PublicKey), ProverError> {
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, VerificationKey<SpendAuth>), ProverError> {
         log::info!("spend_proof");
         // Initialize secure RNG
         let mut rng = OsRng;
@@ -132,8 +132,10 @@ impl SaplingProvingContext {
             .ok_or(ProverError::InvalidDiversifier)?;
 
         // This is the result of the re-randomization, we compute it for the caller
-        let rk = PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
+        let fr = ar * SPENDING_KEY_GENERATOR;       
+        let r: Randomizer = fr;
 
+        let rk = VerificationKey::<SpendAuth>::from(proof_generation_key.ak).randomize(&r);
         // Let's compute the nullifier while we have the position
         let note = Note::from_parts(payment_address, value, rseed);
 
@@ -162,7 +164,7 @@ impl SaplingProvingContext {
 
         let mut public_input = [bls12_381::Scalar::zero(); 7];
         {
-            let affine = rk.0.to_affine();
+            let affine = rk.to_affine();
             let (u, v) = (affine.get_u(), affine.get_v());
             public_input[0] = u;
             public_input[1] = v;
@@ -264,20 +266,19 @@ impl SaplingProvingContext {
     /// Create the bindingSig for a Sapling transaction. All calls to
     /// spend_proof() and output_proof() must be completed before calling
     /// this function.
-    pub fn binding_sig<T: SigType> (
+    pub fn binding_sig (
         &self,
         value_balance: Amount,
         sig_hash: &[u8; 32],
-    ) -> Result<Signature<T>, ProverError> {
+    ) -> Result<Signature<Binding>, ProverError> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
         // Grab the current `bsk` from the context
-        let bsk = PrivateKey(self.bsk);
+        let bsk = SigningKey::new(self.bsk);
 
         // Grab the `bvk` using DerivePublic.
-        let bvk = PublicKey::from_private(&bsk, VALUE_COMMITMENT_RANDOMNESS_GENERATOR);
-
+        let bvk = VerificationKey::<Binding>::from(bsk);
         // In order to check internal consistency, let's use the accumulated value
         // commitments (as the verifier would) and apply value_balance to compare
         // against our derived bvk.
@@ -289,18 +290,18 @@ impl SaplingProvingContext {
             let final_bvk = self.cv_sum - value_balance;
 
             // The result should be the same, unless the provided valueBalance is wrong.
-            if bvk.0 != final_bvk {
+            if bvk != final_bvk {
                 return Err(ProverError::InvalidBalance);
             }
         }
 
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0 .. 32].copy_from_slice(&bvk.0.to_bytes());
+        data_to_be_signed[0 .. 32].copy_from_slice(&bvk.to_bytes());
         data_to_be_signed[32 .. 64].copy_from_slice(&sig_hash[..]);
 
         // Sign
-        Ok(bsk.sign(&data_to_be_signed, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR))
+        Ok(bsk.sign(&mut rng, &data_to_be_signed))
     }
 }
 
