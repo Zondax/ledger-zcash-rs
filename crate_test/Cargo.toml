@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "112eedd27b2e51b9e1b77603a776cd78e738c3ae", features = ["transparent-inputs"], package = "zcash_primitives" }
+zcash_primitives = { git = "https://github.com/Zondax/librustzcash", rev = "ce278848fef35903db46c3dced41658e90bbeb3c", features = ["transparent-inputs"], package = "zcash_primitives" }
 
 
 ledger-zcash-builder = { path = "../ledger-zcash-builder", version = "=0.11.2" }
